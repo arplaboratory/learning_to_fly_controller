@@ -9,3 +9,6 @@ first, then
 make
 ```
 in this folder.
+
+
+The main `crazyflie-firmware` has been changed to be in `DEBUG` mode and the `stabilizer.c` motor commands have been disabled
