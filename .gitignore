@@ -1,3 +1,4 @@
-.built-in.o.cmd
-built-in.o
 build
+*.o
+*.o.cmd
+.vscode/settings.json
