@@ -1,5 +1,5 @@
 #ifdef __cplusplus
 extern "C"
 #endif
-void backprop_tools_run(float* output_mem);
+void backprop_tools_run(float* input_mem, float* output_mem);
 

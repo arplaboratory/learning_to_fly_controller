@@ -14,7 +14,7 @@
 // #include "dynamics_encoder.h"
 
 // #define DEBUG_OUTPUT_INTERVAL 500
-#define CONTROL_INTERVAL_MS 2
+#define CONTROL_INTERVAL_MS 2000
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
 #define POS_DISTANCE_LIMIT 0.3f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
@@ -179,8 +179,9 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
 
   if (tick % CONTROL_INTERVAL_MS == 0){
     update_controller_input(sensors, state);
-    backprop_tools_run(action_output);
+    backprop_tools_run(state_input, action_output);
     for(uint8_t i=0; i<4; i++){
+      DEBUG_PRINT("action_output[%d]: %f\n", i, action_output[i]);
       float a_pp = (action_output[i] + 1)/2;
       motor_cmd[i] = a_pp * UINT16_MAX;
       if(set_motors){
