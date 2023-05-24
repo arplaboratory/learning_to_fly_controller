@@ -6,9 +6,9 @@
 #include <backprop_tools/nn/layers/dense/operations_arm/dsp.h>
 #include <backprop_tools/nn_models/mlp/operations_generic.h>
 // #include "data/actor_000000000500000.h"
-// #include "data/actor_000000000100000.h"
+#include "data/actor_000000001000000.h"
 // #include "data/actor_000000000050000.h"
-#include "data/actor_000000000000000.h"
+// #include "data/actor_000000000000000.h"
 // #include "data/test_backprop_tools_nn_models_mlp_evaluation.h"
 
 
@@ -22,7 +22,7 @@ using TI = typename ACTOR_TYPE::SPEC::TI;
 using DTYPE = typename ACTOR_TYPE::SPEC::T;
 
 
-static inline void observe_rotation_matrix(const bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, 13>>& state, bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, 18>>& observation){
+static inline void observe_rotation_matrix(const bpt::Matrix<bpt::matrix::Specification<DTYPE, TI, 1, 13>>& state, bpt::Matrix<bpt::matrix::Specification<DTYPE, TI, 1, 18>>& observation){
     float qw = get(state, 0, 3);
     float qx = get(state, 0, 4);
     float qy = get(state, 0, 5);
@@ -70,8 +70,8 @@ void backprop_tools_init(){
 }
 
 float backprop_tools_test(float* output_mem){
-    // observe_rotation_matrix(bpt::checkpoint::state::container, input);
-    bpt::evaluate(device, bpt::checkpoint::actor::mlp, bpt::checkpoint::observation::container, output, buffers);
+    observe_rotation_matrix(bpt::checkpoint::state::container, input);
+    bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
     float acc = 0;
     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
         acc += std::abs(bpt::get(output, 0, i) - bpt::get(bpt::checkpoint::action::container, 0, i));

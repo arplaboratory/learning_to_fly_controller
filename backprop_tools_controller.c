@@ -139,9 +139,12 @@ bool controllerOutOfTreeTest(void)
   float output[4];
   float absdiff = backprop_tools_test(output);
   for(int i = 0; i < 4; i++){
-    DEBUG_PRINT("BackpropTools controller: Test output %d: %f\n", i, output[i]);
+    DEBUG_PRINT("BackpropTools controller: Test action %d: %f\n", i, output[i]);
   }
-  DEBUG_PRINT("BackpropTools controller: Test %f\n", absdiff);
+  if(absdiff > 1e-5){
+    return false;
+  }
+  DEBUG_PRINT("BackpropTools controller test, abs diff: %f\n", absdiff);
   return controllerPidTest();
 }
 
