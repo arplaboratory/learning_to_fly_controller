@@ -12,6 +12,7 @@
 // #include "data/test_backprop_tools_nn_models_mlp_evaluation.h"
 
 
+// Definitions
 namespace bpt = backprop_tools;
 
 using DEV_SPEC = bpt::devices::DefaultARMSpecification;
@@ -21,7 +22,13 @@ using ACTOR_TYPE = decltype(bpt::checkpoint::actor::mlp);
 using TI = typename ACTOR_TYPE::SPEC::TI;
 using DTYPE = typename ACTOR_TYPE::SPEC::T;
 
+// State
+static ACTOR_TYPE::template Buffers<1, bpt::MatrixStaticTag> buffers;
+static bpt::MatrixStatic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
+static bpt::MatrixStatic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM>> output;
 
+
+// Helper functions (without side-effects)
 static inline void observe_rotation_matrix(const bpt::Matrix<bpt::matrix::Specification<DTYPE, TI, 1, 13>>& state, bpt::Matrix<bpt::matrix::Specification<DTYPE, TI, 1, 18>>& observation){
     float qw = get(state, 0, 3);
     float qx = get(state, 0, 4);
@@ -47,22 +54,7 @@ static inline void observe_rotation_matrix(const bpt::Matrix<bpt::matrix::Specif
     set(observation, 0, 15 + 2, get(state, 0, 3 + 4 + 3 + 2));
 }
 
-void backprop_tools_control_rotation_matrix(float* state, float* actions){
-    // static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == 18);
-    // bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, 13>> state_matrix = {(DTYPE*)state}; 
-    // // observe_rotation_matrix(state_matrix, input);
-    // bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(DTYPE*)actions};
-    // bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
-}
-
-// DTYPE buffer_tick_memory[ACTOR_TYPE::SPEC::HIDDEN_DIM];
-// DTYPE buffer_tock_memory[ACTOR_TYPE::SPEC::HIDDEN_DIM];
-// DTYPE buffer_input[ACTOR_TYPE::SPEC::INPUT_DIM];
-
-static ACTOR_TYPE::template Buffers<1, bpt::MatrixStaticTag> buffers;
-static bpt::MatrixStatic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> input;
-static bpt::MatrixStatic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output;
-
+// Main functions (possibly with side effects)
 void backprop_tools_init(){
     bpt::malloc(device, buffers);
     bpt::malloc(device, input);
@@ -78,4 +70,12 @@ float backprop_tools_test(float* output_mem){
         output_mem[i] = bpt::get(bpt::checkpoint::action::container, 0, i);
     }
     return acc;
+}
+
+void backprop_tools_control_rotation_matrix(float* state, float* actions){
+    static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == 18);
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, 13, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(DTYPE*)state}; 
+    observe_rotation_matrix(state_matrix, input);
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(DTYPE*)actions};
+    bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
 }

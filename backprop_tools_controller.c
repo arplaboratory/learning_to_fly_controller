@@ -221,10 +221,10 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     update_state(sensors, state);
     {
       int64_t before = usecTimestamp();
-      // backprop_tools_control_rotation_matrix(state_input, action_output);
+      backprop_tools_control_rotation_matrix(state_input, action_output);
       int64_t after = usecTimestamp();
       if (tick % (CONTROL_INTERVAL_MS * 1000) == 0){
-        DEBUG_PRINT("backprop_tools_run took %lldus\n", after - before);
+        DEBUG_PRINT("backprop_tools_control took %lldus\n", after - before);
       }
     }
     for(uint8_t i=0; i<4; i++){
