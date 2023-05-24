@@ -10,11 +10,12 @@
 #include "controller_pid.h"
 #include "power_distribution.h"
 #include "backprop_tools_adapter.h"
+#include "stabilizer.h"
 
 // #include "dynamics_encoder.h"
 
 // #define DEBUG_OUTPUT_INTERVAL 500
-#define CONTROL_INTERVAL_MS 2
+#define CONTROL_INTERVAL_MS 10
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
 #define POS_DISTANCE_LIMIT 0.3f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
@@ -50,7 +51,7 @@ static float control_invocation_interval = 0;
 
 // Control variables: input
 static float target_pos[3] = {0, 0, 0}; // described in global enu frame
-static float target_height = 0.0;
+static float target_height = 0.2;
 
 // NN input
 static float state_input[13];
@@ -66,6 +67,10 @@ static uint8_t set_motors_overwrite = 0;
 static uint16_t motor_cmd[4];
 static float motor_cmd_divider;
 static bool prev_set_motors;
+
+static motors_thrust_uncapped_t motorThrustUncapped;
+static motors_thrust_uncapped_t motorThrustBatCompUncapped;
+static motors_thrust_pwm_t motorPwm;
 
 
 
@@ -88,7 +93,7 @@ static inline float clip(float v, float low, float high){
   }
 }
 
-static inline void update_controller_input(const sensorData_t* sensors, const state_t* state){
+static inline void update_state(const sensorData_t* sensors, const state_t* state){
   state_input[ 0] = clip(state->position.x - target_pos[0], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
   state_input[ 1] = clip(state->position.y - target_pos[1], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
   state_input[ 2] = clip(state->position.z - target_pos[2], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
@@ -125,15 +130,37 @@ void controllerOutOfTreeInit(void){
   control_invocation_interval = 0;
   forward_tick = 0;
   controllerPidInit();
-  DEBUG_PRINT("PUDM-RL: Init\n");
+  backprop_tools_init();
+  DEBUG_PRINT("BackpropTools controller: Init\n");
 }
 
 bool controllerOutOfTreeTest(void)
 {
+  float output[4];
+  float absdiff = backprop_tools_test(output);
+  for(int i = 0; i < 4; i++){
+    DEBUG_PRINT("BackpropTools controller: Test output %d: %f\n", i, output[i]);
+  }
+  DEBUG_PRINT("BackpropTools controller: Test %f\n", absdiff);
   return controllerPidTest();
 }
 
+static void batteryCompensation(const motors_thrust_uncapped_t* motorThrustUncapped, motors_thrust_uncapped_t* motorThrustBatCompUncapped)
+{
+  float supplyVoltage = pmGetBatteryVoltage();
 
+  for (int motor = 0; motor < STABILIZER_NR_OF_MOTORS; motor++)
+  {
+    motorThrustBatCompUncapped->list[motor] = motorsCompensateBatteryVoltage(motor, motorThrustUncapped->list[motor], supplyVoltage);
+  }
+}
+static void setMotorRatios(const motors_thrust_pwm_t* motorPwm)
+{
+  motorsSetRatio(MOTOR_M1, motorPwm->motors.m1);
+  motorsSetRatio(MOTOR_M2, motorPwm->motors.m2);
+  motorsSetRatio(MOTOR_M3, motorPwm->motors.m3);
+  motorsSetRatio(MOTOR_M4, motorPwm->motors.m4);
+}
 
 
 static inline void every_500ms(){
@@ -177,14 +204,26 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     target_pos[0] = state->position.x;
     target_pos[1] = state->position.y;
     target_pos[2] = state->position.z + target_height;
+    DEBUG_PRINT("Controller activated\n");
   }
+  if(prev_set_motors && !set_motors){
+    DEBUG_PRINT("Controller deactivated\n");
+  }
+
   trigger_every(tick);
   prev_set_motors = set_motors;
 
 
   if (tick % CONTROL_INTERVAL_MS == 0){
-    update_controller_input(sensors, state);
-    backprop_tools_run(state_input, action_output);
+    update_state(sensors, state);
+    {
+      int64_t before = usecTimestamp();
+      // backprop_tools_control_rotation_matrix(state_input, action_output);
+      int64_t after = usecTimestamp();
+      if (tick % (CONTROL_INTERVAL_MS * 1000) == 0){
+        DEBUG_PRINT("backprop_tools_run took %lldus\n", after - before);
+      }
+    }
     for(uint8_t i=0; i<4; i++){
       if (tick % (CONTROL_INTERVAL_MS * 1000) == 0){
         DEBUG_PRINT("action_output[%d]: %f\n", i, action_output[i]);
@@ -203,11 +242,11 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     timestamp_last_reset = usecTimestamp();
   }
   if(!set_motors){
-    // controllerPid(control, setpoint, sensors, state, tick);
-    // powerDistribution(&control, &motorThrustUncapped);
-    // batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
-    // powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);
-    // setMotorRatios(&motorPwm);
+    controllerPid(control, setpoint, sensors, state, tick);
+    powerDistribution(&control, &motorThrustUncapped);
+    batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
+    powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);
+    setMotorRatios(&motorPwm);
   }
   controller_tick++;
 }
