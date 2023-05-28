@@ -73,6 +73,8 @@ static motors_thrust_uncapped_t motorThrustUncapped;
 static motors_thrust_uncapped_t motorThrustBatCompUncapped;
 static motors_thrust_pwm_t motorPwm;
 
+static uint8_t hand_test = 0; // 0 = off; 1 = setpoint; 2 = angular velocity rejection; 3 = angular velocity rejection + orientation rejection;
+
 
 
 void controller_pudmrl_control_packet_received(){
@@ -95,19 +97,48 @@ static inline float clip(float v, float low, float high){
 }
 
 static inline void update_state(const sensorData_t* sensors, const state_t* state){
-  state_input[ 0] = clip(state->position.x - target_pos[0], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
-  state_input[ 1] = clip(state->position.y - target_pos[1], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
-  state_input[ 2] = clip(state->position.z - target_pos[2], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
-  state_input[ 3] = state->attitudeQuaternion.w;
-  state_input[ 4] = state->attitudeQuaternion.x;
-  state_input[ 5] = state->attitudeQuaternion.y;
-  state_input[ 6] = state->attitudeQuaternion.z;
-  state_input[ 7] = state->velocity.x;
-  state_input[ 8] = state->velocity.y;
-  state_input[ 9] = state->velocity.z;
-  state_input[10] = radians(sensors->gyro.x);
-  state_input[11] = radians(sensors->gyro.y);
-  state_input[12] = radians(sensors->gyro.z);
+  if(hand_test == 0){
+    state_input[ 0] = clip(state->position.x - target_pos[0], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
+    state_input[ 1] = clip(state->position.y - target_pos[1], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
+    state_input[ 2] = clip(state->position.z - target_pos[2], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
+  }
+  else{
+    state_input[ 0] = 0;
+    state_input[ 1] = 0;
+    state_input[ 2] = 0;
+  }
+  if(hand_test == 0 || hand_test == 3){
+    state_input[ 3] = state->attitudeQuaternion.w;
+    state_input[ 4] = state->attitudeQuaternion.x;
+    state_input[ 5] = state->attitudeQuaternion.y;
+    state_input[ 6] = state->attitudeQuaternion.z;
+  }
+  else{
+    state_input[ 3] = 1;
+    state_input[ 4] = 0;
+    state_input[ 5] = 0;
+    state_input[ 6] = 0;
+  }
+  if(hand_test == 0){
+    state_input[ 7] = state->velocity.x;
+    state_input[ 8] = state->velocity.y;
+    state_input[ 9] = state->velocity.z;
+  }
+  else{
+    state_input[ 7] = 0;
+    state_input[ 8] = 0;
+    state_input[ 9] = 0;
+  }
+  if(hand_test != 1){
+    state_input[10] = radians(sensors->gyro.x);
+    state_input[11] = radians(sensors->gyro.y);
+    state_input[12] = radians(sensors->gyro.z);
+  }
+  else{
+    state_input[10] = 0;
+    state_input[11] = 0;
+    state_input[12] = 0;
+  }
 }
 
 void learned_controller_packet_received(){
@@ -130,6 +161,7 @@ void controllerOutOfTreeInit(void){
   timestamp_last_behind_schedule_message = 0;
   control_invocation_interval = 0;
   forward_tick = 0;
+  hand_test = 0;
   controllerPidInit();
   backprop_tools_init();
   DEBUG_PRINT("BackpropTools controller: Init\n");
@@ -174,6 +206,7 @@ static inline void every_500ms(){
 #ifdef PRINT_TWIST
   DEBUG_PRINT("tw.l: %5.2f, %5.2f, %5.2f tw.a: %5.2f, %5.2f, %5.2f\n", state_input[7], state_input[8], state_input[9], state_input[10], state_input[11], state_input[12]);
 #endif
+  DEBUG_PRINT("q: %5.2f, %5.2f, %5.2f, %5.2f\n", state_input[3], state_input[4], state_input[5], state_input[6]);
 }
 
 static inline void every_1000ms(){
@@ -268,6 +301,7 @@ PARAM_GROUP_START(pudmrlg)
 PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
 PARAM_ADD(PARAM_UINT8, smo, &set_motors_overwrite)
+PARAM_ADD(PARAM_UINT8, ht, &hand_test)
 PARAM_GROUP_STOP(pudmrlg)
 
 LOG_GROUP_START(dpudmrlp)
