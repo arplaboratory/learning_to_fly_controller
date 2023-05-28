@@ -24,7 +24,7 @@
 #define DEBUG_MEASURE_FORWARD_TIME
 
 // #define PRINT_RPY
-#define PRINT_TWIST
+// #define PRINT_TWIST
 
 // test stuff
 
@@ -205,8 +205,8 @@ static void setMotorRatios(const motors_thrust_pwm_t* motorPwm)
 static inline void every_500ms(){
 #ifdef PRINT_TWIST
   DEBUG_PRINT("tw.l: %5.2f, %5.2f, %5.2f tw.a: %5.2f, %5.2f, %5.2f\n", state_input[7], state_input[8], state_input[9], state_input[10], state_input[11], state_input[12]);
-#endif
   DEBUG_PRINT("q: %5.2f, %5.2f, %5.2f, %5.2f\n", state_input[3], state_input[4], state_input[5], state_input[6]);
+#endif
 }
 
 static inline void every_1000ms(){
@@ -261,12 +261,12 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       int64_t before = usecTimestamp();
       backprop_tools_control(state_input, action_output);
       int64_t after = usecTimestamp();
-      if (tick % (CONTROL_INTERVAL_MS * 1000) == 0){
+      if (tick % (CONTROL_INTERVAL_MS * 10000) == 0){
         DEBUG_PRINT("backprop_tools_control took %lldus\n", after - before);
       }
     }
     for(uint8_t i=0; i<4; i++){
-      if (tick % (CONTROL_INTERVAL_MS * 1000) == 0){
+      if (tick % (CONTROL_INTERVAL_MS * 10000) == 0){
         DEBUG_PRINT("action_output[%d]: %f\n", i, action_output[i]);
       }
       float a_pp = (action_output[i] + 1)/2;
@@ -277,7 +277,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     }
     int64_t spare_time = CONTROL_INTERVAL_US - (now - timestamp_last_reset) ;
     if(spare_time < 0 && (now - timestamp_last_behind_schedule_message > BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL)){
-      DEBUG_PRINT("PUDM-RL Controller is behind schedule: %lldus/%dus\n", (int64_t)(now-timestamp_last_reset), CONTROL_INTERVAL_US);
+      DEBUG_PRINT("Learned Controller is behind schedule: %lldus/%dus\n", (int64_t)(now-timestamp_last_reset), CONTROL_INTERVAL_US);
       timestamp_last_behind_schedule_message = now;
     }
     timestamp_last_reset = usecTimestamp();
