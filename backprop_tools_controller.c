@@ -22,6 +22,8 @@
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
 #define DEBUG_MEASURE_FORWARD_TIME
+#define MIN_RPM 10000
+#define MAX_RPM 21702.1
 
 // #define PRINT_RPY
 // #define PRINT_TWIST
@@ -77,7 +79,7 @@ static uint8_t hand_test = 0; // 0 = off; 1 = setpoint; 2 = angular velocity rej
 
 
 
-void controller_pudmrl_control_packet_received(){
+void controller_bpt_control_packet_received(){
   uint64_t now = usecTimestamp();
   timestamp_last_control_packet_received = now;
 }
@@ -270,7 +272,9 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
         DEBUG_PRINT("action_output[%d]: %f\n", i, action_output[i]);
       }
       float a_pp = (action_output[i] + 1)/2;
-      motor_cmd[i] = a_pp * UINT16_MAX;
+      float des_rpm = (MAX_RPM - MIN_RPM) * a_pp + MIN_RPM;
+      float des_percentage = des_rpm / MAX_RPM;
+      motor_cmd[i] = des_percentage * UINT16_MAX;
       if(set_motors){
         motorsSetRatio(motors[i], clip((float)motor_cmd[i] / motor_cmd_divider, 0, UINT16_MAX));
       }
@@ -283,9 +287,6 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     timestamp_last_reset = usecTimestamp();
   }
   if(!set_motors){
-    if (tick % 1000 == 0){
-      DEBUG_PRINT("Controller not active\n");
-    }
     controllerPid(control, setpoint, sensors, state, tick);
     powerDistribution(&control, &motorThrustUncapped);
     batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
@@ -297,43 +298,43 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
 
 
 
-PARAM_GROUP_START(pudmrlg)
+PARAM_GROUP_START(bpt)
 PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
 PARAM_ADD(PARAM_UINT8, smo, &set_motors_overwrite)
 PARAM_ADD(PARAM_UINT8, ht, &hand_test)
-PARAM_GROUP_STOP(pudmrlg)
+PARAM_GROUP_STOP(bpt)
 
-LOG_GROUP_START(dpudmrlp)
+LOG_GROUP_START(bptp)
 LOG_ADD(LOG_FLOAT, x, &state_input[0])
 LOG_ADD(LOG_FLOAT, y, &state_input[1])
 LOG_ADD(LOG_FLOAT, z, &state_input[2])
-LOG_GROUP_STOP(dpudmrlp)
+LOG_GROUP_STOP(bptp)
 
-LOG_GROUP_START(dpudmrlaq)
+LOG_GROUP_START(bptq)
 LOG_ADD(LOG_FLOAT, w, &state_input[3])
 LOG_ADD(LOG_FLOAT, x, &state_input[4])
 LOG_ADD(LOG_FLOAT, y, &state_input[5])
 LOG_ADD(LOG_FLOAT, z, &state_input[6])
-LOG_GROUP_STOP(dpudmrlaq)
+LOG_GROUP_STOP(bptq)
 
-LOG_GROUP_START(dpudmrltwl)
+LOG_GROUP_START(bpttwl)
 LOG_ADD(LOG_FLOAT, x, &state_input[7])
 LOG_ADD(LOG_FLOAT, y, &state_input[8])
 LOG_ADD(LOG_FLOAT, z, &state_input[9])
-LOG_GROUP_STOP(dpudmrltwl)
+LOG_GROUP_STOP(bpttwl)
 
-LOG_GROUP_START(dpudmrltwa)
+LOG_GROUP_START(bpttwa)
 LOG_ADD(LOG_FLOAT, x, &state_input[10])
 LOG_ADD(LOG_FLOAT, y, &state_input[11])
 LOG_ADD(LOG_FLOAT, z, &state_input[12])
-LOG_GROUP_STOP(dpudmrltwa)
+LOG_GROUP_STOP(bpttwa)
 
 
-LOG_GROUP_START(dpudmrlm)
+LOG_GROUP_START(bptm)
 LOG_ADD(LOG_UINT16, m1, &motor_cmd[0])
 LOG_ADD(LOG_UINT16, m2, &motor_cmd[1])
 LOG_ADD(LOG_UINT16, m3, &motor_cmd[2])
 LOG_ADD(LOG_UINT16, m4, &motor_cmd[3])
-LOG_GROUP_STOP(dpudmrlm)
+LOG_GROUP_STOP(bptm)
 
