@@ -15,7 +15,7 @@
 // #include "dynamics_encoder.h"
 
 // #define DEBUG_OUTPUT_INTERVAL 500
-#define CONTROL_INTERVAL_MS 10
+#define CONTROL_INTERVAL_MS 5
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
 #define POS_DISTANCE_LIMIT 0.3f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
@@ -24,6 +24,7 @@
 #define DEBUG_MEASURE_FORWARD_TIME
 
 // #define PRINT_RPY
+#define PRINT_TWIST
 
 // test stuff
 
@@ -51,7 +52,7 @@ static float control_invocation_interval = 0;
 
 // Control variables: input
 static float target_pos[3] = {0, 0, 0}; // described in global enu frame
-static float target_height = 0.2;
+static float target_height = 0.0;
 
 // NN input
 static float state_input[13];
@@ -104,9 +105,9 @@ static inline void update_state(const sensorData_t* sensors, const state_t* stat
   state_input[ 7] = state->velocity.x;
   state_input[ 8] = state->velocity.y;
   state_input[ 9] = state->velocity.z;
-  state_input[10] =  radians(sensors->gyro.x);
-  state_input[11] = -radians(sensors->gyro.y);
-  state_input[12] =  radians(sensors->gyro.z);
+  state_input[10] = radians(sensors->gyro.x);
+  state_input[11] = radians(sensors->gyro.y);
+  state_input[12] = radians(sensors->gyro.z);
 }
 
 void learned_controller_packet_received(){
@@ -138,13 +139,16 @@ bool controllerOutOfTreeTest(void)
 {
   float output[4];
   float absdiff = backprop_tools_test(output);
+  if(absdiff < 0){
+    absdiff = -absdiff;
+  }
+  DEBUG_PRINT("BackpropTools controller test, abs diff: %f\n", absdiff);
   for(int i = 0; i < 4; i++){
     DEBUG_PRINT("BackpropTools controller: Test action %d: %f\n", i, output[i]);
   }
   if(absdiff > 1e-5){
     return false;
   }
-  DEBUG_PRINT("BackpropTools controller test, abs diff: %f\n", absdiff);
   return controllerPidTest();
 }
 
@@ -168,7 +172,7 @@ static void setMotorRatios(const motors_thrust_pwm_t* motorPwm)
 
 static inline void every_500ms(){
 #ifdef PRINT_TWIST
-  DEBUG_PRINT("tw.l: %5.2f, %5.2f, %5.2f tw.a: %5.2f, %5.2f, %5.2f\n", twist_linear[0], twist_linear[1], twist_linear[2], twist_angular[0], twist_angular[1], twist_angular[2]);
+  DEBUG_PRINT("tw.l: %5.2f, %5.2f, %5.2f tw.a: %5.2f, %5.2f, %5.2f\n", state_input[7], state_input[8], state_input[9], state_input[10], state_input[11], state_input[12]);
 #endif
 }
 
@@ -203,6 +207,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   control_invocation_interval += (1-CONTROL_INVOCATION_INTERVAL_ALPHA) * (now - timestamp_last_control_invocation);
   timestamp_last_control_invocation = now;
   bool set_motors = (now - timestamp_last_control_packet_received < CONTROL_PACKET_TIMEOUT_USEC)  || (set_motors_overwrite == 1 && motor_cmd_divider >= 3);
+  stabilizer_overwrite_output(set_motors);
   if(!prev_set_motors && set_motors){
     target_pos[0] = state->position.x;
     target_pos[1] = state->position.y;
@@ -221,7 +226,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     update_state(sensors, state);
     {
       int64_t before = usecTimestamp();
-      backprop_tools_control_rotation_matrix(state_input, action_output);
+      backprop_tools_control(state_input, action_output);
       int64_t after = usecTimestamp();
       if (tick % (CONTROL_INTERVAL_MS * 1000) == 0){
         DEBUG_PRINT("backprop_tools_control took %lldus\n", after - before);
@@ -245,6 +250,9 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     timestamp_last_reset = usecTimestamp();
   }
   if(!set_motors){
+    if (tick % 1000 == 0){
+      DEBUG_PRINT("Controller not active\n");
+    }
     controllerPid(control, setpoint, sensors, state, tick);
     powerDistribution(&control, &motorThrustUncapped);
     batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
