@@ -41,4 +41,7 @@ Modify the topic in the main.py to reflect the vicon object that corresponds to 
 ```
 cfclient
 ```
-Set the `stabilizer.estimator` parameter to EKF so that the external position reference is incorporated into the estimate
+Set the `stabilizer.estimator` parameter to EKF so that the external position reference is incorporated into the estimate (this is set by default in the modified fw now)
+
+
+Test the angular rate response using the ht (hand test) parameter in the firmware (check the hand_test var in the controller code to see the options)

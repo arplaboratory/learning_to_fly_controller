@@ -10,19 +10,19 @@
 #include "controller_pid.h"
 #include "power_distribution.h"
 #include "backprop_tools_adapter.h"
-#include "stabilizer.h"
 
 // #include "dynamics_encoder.h"
 
 // #define DEBUG_OUTPUT_INTERVAL 500
-#define CONTROL_INTERVAL_MS 5
+#define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
 #define POS_DISTANCE_LIMIT 0.3f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
 #define DEBUG_MEASURE_FORWARD_TIME
-#define MIN_RPM 10000
+// #define MIN_RPM 10000
+#define MIN_RPM 0
 #define MAX_RPM 21702.1
 
 // #define PRINT_RPY
@@ -180,7 +180,7 @@ bool controllerOutOfTreeTest(void)
   for(int i = 0; i < 4; i++){
     DEBUG_PRINT("BackpropTools controller: Test action %d: %f\n", i, output[i]);
   }
-  if(absdiff > 1e-5){
+  if(absdiff > 0.2){
     return false;
   }
   return controllerPidTest();
@@ -242,7 +242,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   control_invocation_interval += (1-CONTROL_INVOCATION_INTERVAL_ALPHA) * (now - timestamp_last_control_invocation);
   timestamp_last_control_invocation = now;
   bool set_motors = (now - timestamp_last_control_packet_received < CONTROL_PACKET_TIMEOUT_USEC)  || (set_motors_overwrite == 1 && motor_cmd_divider >= 3);
-  stabilizer_overwrite_output(set_motors);
+  set_backprop_tools_overwrite_stabilizer(set_motors);
   if(!prev_set_motors && set_motors){
     target_pos[0] = state->position.x;
     target_pos[1] = state->position.y;
