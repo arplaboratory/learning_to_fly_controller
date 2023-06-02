@@ -23,17 +23,20 @@ using DEVICE = bpt::devices::arm::OPT<DEV_SPEC>;
 DEVICE device;
 using ACTOR_TYPE = decltype(bpt::checkpoint::actor::mlp);
 using TI = typename ACTOR_TYPE::SPEC::TI;
-using DTYPE = typename ACTOR_TYPE::SPEC::T;
+using T = typename ACTOR_TYPE::SPEC::T;
 
 // State
 static ACTOR_TYPE::template Buffers<1, bpt::MatrixStaticTag> buffers;
-static bpt::MatrixStatic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
-static bpt::MatrixStatic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM>> output;
+static bpt::MatrixStatic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
+static bpt::MatrixStatic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM>> output;
+static T action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH][ACTOR_TYPE::SPEC::OUTPUT_DIM];
 
 
 // Helper functions (without side-effects)
-template <typename STATE_SPEC>
-static inline void observe_rotation_matrix(const bpt::Matrix<STATE_SPEC>& state, bpt::Matrix<bpt::matrix::Specification<DTYPE, TI, 1, 18>>& observation){
+template <typename STATE_SPEC, typename OBS_SPEC>
+static inline void observe_rotation_matrix(const bpt::Matrix<STATE_SPEC>& state, bpt::Matrix<OBS_SPEC>& observation){
+    static_assert(OBS_SPEC::ROWS == 1);
+    static_assert(OBS_SPEC::COLS == 18);
     float qw = bpt::get(state, 0, 3);
     float qx = bpt::get(state, 0, 4);
     float qy = bpt::get(state, 0, 5);
@@ -63,13 +66,19 @@ void backprop_tools_init(){
     bpt::malloc(device, buffers);
     bpt::malloc(device, input);
     bpt::malloc(device, output);
+    for(TI step_i = 0; step_i < bpt::checkpoint::environment::ACTION_HISTORY_LENGTH; step_i++){
+        for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+            action_history[step_i][action_i] = 0;
+        }
+    }
 }
 
 float backprop_tools_test(float* output_mem){
 #ifndef BACKPROP_TOOLS_CONTROL_STATE_QUATERNION
     auto state = bpt::view(device, bpt::checkpoint::state::container, bpt::matrix::ViewSpec<1, 13>{}, 0, 0);
-    observe_rotation_matrix(state, input);
-    bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
+    // observe_rotation_matrix(state, input);
+    // bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
+    bpt::evaluate(device, bpt::checkpoint::actor::mlp, bpt::checkpoint::observation::container, output, buffers);
     float acc = 0;
     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
         acc += std::abs(bpt::get(output, 0, i) - bpt::get(bpt::checkpoint::action::container, 0, i));
@@ -90,30 +99,30 @@ float backprop_tools_test(float* output_mem){
 #ifdef BACKPROP_TOOLS_CONTROL_STATE_QUATERNION
 void backprop_tools_control(float* state, float* actions){
     static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == 13);
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, 13, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(DTYPE*)state}; 
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(DTYPE*)actions};
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 13, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(T*)state}; 
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
     bpt::evaluate(device, bpt::checkpoint::actor::mlp, state_matrix, output, buffers);
 }
 #elif defined(BACKPROP_TOOLS_CONTROL_STATE_ROTATION_MATRIX)
 void backprop_tools_control(float* state, float* actions){
-    static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == 18);
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, 13, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(DTYPE*)state}; 
-    // bpt::set_all(device, state_matrix, 0);
-    // bpt::set(state_matrix, 0, 0, 0.0);
-    // bpt::set(state_matrix, 0, 1, 0.0);
-    // bpt::set(state_matrix, 0, 2, 0.0);
-    // bpt::set(state_matrix, 0, 3, 1.0);
-    // bpt::set(state_matrix, 0, 4, 0.0);
-    // bpt::set(state_matrix, 0, 5, 0.0);
-    // bpt::set(state_matrix, 0, 6, 0.0);
-    // bpt::set(state_matrix, 0, 7, 0.0);
-    // bpt::set(state_matrix, 0, 8, 0.0);
-    // bpt::set(state_matrix, 0, 9, 0.0);
-    // bpt::set(state_matrix, 0, 10, 0.0);
-    // bpt::set(state_matrix, 0, 11, 0.0);
-    // bpt::set(state_matrix, 0, 12, 0.0);
-    observe_rotation_matrix(state_matrix, input);
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(DTYPE*)actions};
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 13, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(T*)state}; 
+    auto state_rotation_matrix_input = bpt::view(device, input, bpt::matrix::ViewSpec<1, 18>{}, 0, 0);
+    observe_rotation_matrix(state_matrix, state_rotation_matrix_input);
+    auto action_history_observation = bpt::view(device, input, bpt::matrix::ViewSpec<1, bpt::checkpoint::environment::ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM>{}, 0, 18);
+    for(TI step_i = 0; step_i < bpt::checkpoint::environment::ACTION_HISTORY_LENGTH; step_i++){
+        for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+            bpt::set(action_history_observation, 0, step_i * ACTOR_TYPE::SPEC::OUTPUT_DIM + action_i, action_history[step_i][action_i]);
+        }
+    }
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
     bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
+    for(TI step_i = 0; step_i < bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1; step_i++){
+        for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+            action_history[step_i][action_i] = action_history[step_i + 1][action_i];
+        }
+    }
+    for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+        action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1][action_i] = bpt::get(output, 0, action_i);
+    }
 }
 #endif
