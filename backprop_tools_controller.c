@@ -14,9 +14,9 @@
 // #include "dynamics_encoder.h"
 
 // #define DEBUG_OUTPUT_INTERVAL 500
-#define CONTROL_INTERVAL_MS 10 
+#define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
-#define POS_DISTANCE_LIMIT 0.3f
+#define POS_DISTANCE_LIMIT 0.1f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
@@ -57,6 +57,7 @@ static float control_invocation_interval = 0;
 
 // Control variables: input
 static float target_pos[3] = {0, 0, 0}; // described in global enu frame
+static float pos_error[3] = {0, 0, 0}; // described in global enu frame
 static float origin[3] = {0, 0, 0};
 static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
   {0.5, 0.0, 0},
@@ -64,6 +65,7 @@ static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
   {0.0, 0.5, 0},
   {0.0, 0.0, 0},
 };
+static float trajectory_scale = 0.5;
 static float target_height = 0.0;
 static uint64_t timestamp_last_waypoint;
 
@@ -267,9 +269,9 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
 #ifdef WAYPOINT_NAVIGATION
   uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
   int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
-  target_pos[0] = trajectory[current_point][0] + origin[0];
-  target_pos[1] = trajectory[current_point][1] + origin[1];
-  target_pos[2] = trajectory[current_point][2] + origin[2];
+  target_pos[0] = trajectory[current_point][0] * trajectory_scale + origin[0];
+  target_pos[1] = trajectory[current_point][1] * trajectory_scale + origin[1];
+  target_pos[2] = trajectory[current_point][2] * trajectory_scale + origin[2];
 #else
   target_pos[0] = origin[0];
   target_pos[1] = origin[1];

@@ -26,7 +26,7 @@ DEVICE device;
 using ACTOR_TYPE = decltype(bpt::checkpoint::actor::mlp);
 using TI = typename ACTOR_TYPE::SPEC::TI;
 using T = typename ACTOR_TYPE::SPEC::T;
-constexpr TI CONTROL_FREQUENCY_MULTIPLE = 1;
+constexpr TI CONTROL_FREQUENCY_MULTIPLE = 5;
 static TI controller_tick = 0;
 
 // State
@@ -133,7 +133,8 @@ void backprop_tools_control(float* state, float* actions){
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
     bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
-    if(controller_tick % CONTROL_FREQUENCY_MULTIPLE == 0){
+    int substep = controller_tick % CONTROL_FREQUENCY_MULTIPLE;
+    if(substep == 0){
         for(TI step_i = 0; step_i < bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1; step_i++){
             for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
                 action_history[step_i][action_i] = action_history[step_i + 1][action_i];
@@ -141,10 +142,11 @@ void backprop_tools_control(float* state, float* actions){
         }
     }
     for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
-        if(controller_tick % CONTROL_FREQUENCY_MULTIPLE == 0){
-            action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1][action_i] = 0;
-        }
-        action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1][action_i] += bpt::get(output, 0, action_i) / ((T)CONTROL_FREQUENCY_MULTIPLE);
+        T value = action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1][action_i];
+        value *= substep;
+        value += bpt::get(output, 0, action_i);
+        value /= substep + 1;
+        action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1][action_i] = value;
     }
 #endif
     controller_tick++;
