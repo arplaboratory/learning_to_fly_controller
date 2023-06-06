@@ -24,6 +24,9 @@
 // #define MIN_RPM 10000
 #define MIN_RPM 0
 #define MAX_RPM 21702.1
+// #define WAYPOINT_NAVIGATION
+#define WAYPOINT_NAVIGATION_POINT_DURATION (5 * 1000 * 1000)
+#define WAYPOINT_NAVIGATION_POINTS (4)
 
 // #define PRINT_RPY
 // #define PRINT_TWIST
@@ -54,7 +57,15 @@ static float control_invocation_interval = 0;
 
 // Control variables: input
 static float target_pos[3] = {0, 0, 0}; // described in global enu frame
+static float origin[3] = {0, 0, 0};
+static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
+  {0.5, 0.0, 0},
+  {0.5, 0.5, 0},
+  {0.0, 0.5, 0},
+  {0.0, 0.0, 0},
+};
 static float target_height = 0.0;
+static uint64_t timestamp_last_waypoint;
 
 // NN input
 static float state_input[13];
@@ -244,14 +255,26 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   bool set_motors = (now - timestamp_last_control_packet_received < CONTROL_PACKET_TIMEOUT_USEC)  || (set_motors_overwrite == 1 && motor_cmd_divider >= 3);
   set_backprop_tools_overwrite_stabilizer(set_motors);
   if(!prev_set_motors && set_motors){
-    target_pos[0] = state->position.x;
-    target_pos[1] = state->position.y;
-    target_pos[2] = state->position.z + target_height;
+    timestamp_last_waypoint = now;
+    origin[0] = state->position.x;
+    origin[1] = state->position.y;
+    origin[2] = state->position.z + target_height;
     DEBUG_PRINT("Controller activated\n");
   }
   if(prev_set_motors && !set_motors){
     DEBUG_PRINT("Controller deactivated\n");
   }
+#ifdef WAYPOINT_NAVIGATION
+  uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
+  int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
+  target_pos[0] = trajectory[current_point][0] + origin[0];
+  target_pos[1] = trajectory[current_point][1] + origin[1];
+  target_pos[2] = trajectory[current_point][2] + origin[2];
+#else
+  target_pos[0] = origin[0];
+  target_pos[1] = origin[1];
+  target_pos[2] = origin[2];
+#endif
 
   trigger_every(tick);
   prev_set_motors = set_motors;
@@ -329,6 +352,12 @@ LOG_ADD(LOG_FLOAT, x, &state_input[10])
 LOG_ADD(LOG_FLOAT, y, &state_input[11])
 LOG_ADD(LOG_FLOAT, z, &state_input[12])
 LOG_GROUP_STOP(bpttwa)
+
+LOG_GROUP_START(bptt)
+LOG_ADD(LOG_FLOAT, x, &target_pos[0])
+LOG_ADD(LOG_FLOAT, y, &target_pos[1])
+LOG_ADD(LOG_FLOAT, z, &target_pos[2])
+LOG_GROUP_STOP(bptt)
 
 
 LOG_GROUP_START(bptm)
