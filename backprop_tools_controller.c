@@ -16,7 +16,7 @@
 // #define DEBUG_OUTPUT_INTERVAL 500
 #define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
-#define POS_DISTANCE_LIMIT 0.1f
+#define POS_DISTANCE_LIMIT 0.3f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
@@ -25,6 +25,7 @@
 #define MIN_RPM 0
 #define MAX_RPM 21702.1
 // #define WAYPOINT_NAVIGATION
+static uint8_t waypoint_navigation = 0;
 #define WAYPOINT_NAVIGATION_POINT_DURATION (5 * 1000 * 1000)
 #define WAYPOINT_NAVIGATION_POINTS (4)
 
@@ -177,6 +178,10 @@ void controllerOutOfTreeInit(void){
   control_invocation_interval = 0;
   forward_tick = 0;
   hand_test = 0;
+  waypoint_navigation = 0;
+  timestamp_last_waypoint = 0;
+  trajectory_scale = 0.5;
+
   controllerPidInit();
   backprop_tools_init();
   DEBUG_PRINT("BackpropTools controller: Init\n");
@@ -266,17 +271,18 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   if(prev_set_motors && !set_motors){
     DEBUG_PRINT("Controller deactivated\n");
   }
-#ifdef WAYPOINT_NAVIGATION
-  uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
-  int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
-  target_pos[0] = trajectory[current_point][0] * trajectory_scale + origin[0];
-  target_pos[1] = trajectory[current_point][1] * trajectory_scale + origin[1];
-  target_pos[2] = trajectory[current_point][2] * trajectory_scale + origin[2];
-#else
-  target_pos[0] = origin[0];
-  target_pos[1] = origin[1];
-  target_pos[2] = origin[2];
-#endif
+  if(waypoint_navigation){
+    uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
+    int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
+    target_pos[0] = trajectory[current_point][0] * trajectory_scale + origin[0];
+    target_pos[1] = trajectory[current_point][1] * trajectory_scale + origin[1];
+    target_pos[2] = trajectory[current_point][2] * trajectory_scale + origin[2];
+  }
+  else{
+    target_pos[0] = origin[0];
+    target_pos[1] = origin[1];
+    target_pos[2] = origin[2];
+  }
 
   trigger_every(tick);
   prev_set_motors = set_motors;
@@ -328,6 +334,7 @@ PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
 PARAM_ADD(PARAM_UINT8, smo, &set_motors_overwrite)
 PARAM_ADD(PARAM_UINT8, ht, &hand_test)
+PARAM_ADD(PARAM_UINT8, wn, &waypoint_navigation)
 PARAM_GROUP_STOP(bpt)
 
 LOG_GROUP_START(bptp)
