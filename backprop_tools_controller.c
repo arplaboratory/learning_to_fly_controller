@@ -61,9 +61,9 @@ static float target_pos[3] = {0, 0, 0}; // described in global enu frame
 static float pos_error[3] = {0, 0, 0}; // described in global enu frame
 static float origin[3] = {0, 0, 0};
 static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
-  {0.5, 0.0, 0},
-  {0.5, 0.5, 0},
-  {0.0, 0.5, 0},
+  {1.0, 0.0, 0},
+  {1.0, 1.0, 0},
+  {0.0, 1.0, 0},
   {0.0, 0.0, 0},
 };
 static float trajectory_scale = 0.5;
@@ -335,6 +335,7 @@ PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
 PARAM_ADD(PARAM_UINT8, smo, &set_motors_overwrite)
 PARAM_ADD(PARAM_UINT8, ht, &hand_test)
 PARAM_ADD(PARAM_UINT8, wn, &waypoint_navigation)
+PARAM_ADD(PARAM_FLOAT, ts, &trajectory_scale)
 PARAM_GROUP_STOP(bpt)
 
 LOG_GROUP_START(bptp)
