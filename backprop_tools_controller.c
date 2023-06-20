@@ -16,7 +16,7 @@
 // #define DEBUG_OUTPUT_INTERVAL 500
 #define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
-#define POS_DISTANCE_LIMIT 0.3f
+#define POS_DISTANCE_LIMIT 0.2f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
@@ -26,8 +26,8 @@
 #define MAX_RPM 21702.1
 // #define WAYPOINT_NAVIGATION
 static uint8_t waypoint_navigation = 0;
-#define WAYPOINT_NAVIGATION_POINT_DURATION (5 * 1000 * 1000)
-#define WAYPOINT_NAVIGATION_POINTS (4)
+#define WAYPOINT_NAVIGATION_POINT_DURATION (4 * 1000 * 1000)
+#define WAYPOINT_NAVIGATION_POINTS (5)
 
 // #define PRINT_RPY
 // #define PRINT_TWIST
@@ -57,18 +57,20 @@ static uint64_t timestamp_last_control_packet_received = 0;
 static float control_invocation_interval = 0;
 
 // Control variables: input
-static float target_pos[3] = {0, 0, 0}; // described in global enu frame
-static float pos_error[3] = {0, 0, 0}; // described in global enu frame
+static float target_pos[3] = {0, 0, 0};
+static float relative_pos[3] = {0, 0, 0};
 static float origin[3] = {0, 0, 0};
 static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
-  {1.0, 0.0, 0},
-  {1.0, 1.0, 0},
-  {0.0, 1.0, 0},
-  {0.0, 0.0, 0},
+  {0.0, 0.0, 0.0},
+  {1.0, 0.0, 0.0},
+  {1.0, 1.0, 0.0},
+  {0.0, 1.0, 0.0},
+  {0.0, 0.0, 0.0},
 };
 static float trajectory_scale = 0.5;
-static float target_height = 0.0;
+static float target_height = 0.3;
 static uint64_t timestamp_last_waypoint;
+static uint8_t log_set_motors = 0;
 
 // NN input
 static float state_input[13];
@@ -166,7 +168,7 @@ void learned_controller_packet_received(){
 void controllerOutOfTreeInit(void){
   controller_state = STATE_RESET;
   controller_tick = 0;
-  motor_cmd_divider = 15;
+  motor_cmd_divider = 1.05;
   motor_cmd[0] = 0;
   motor_cmd[1] = 0;
   motor_cmd[2] = 0;
@@ -178,9 +180,13 @@ void controllerOutOfTreeInit(void){
   control_invocation_interval = 0;
   forward_tick = 0;
   hand_test = 0;
-  waypoint_navigation = 0;
+  waypoint_navigation = 1;
   timestamp_last_waypoint = 0;
   trajectory_scale = 0.5;
+  relative_pos[0] = 0;
+  relative_pos[1] = 0;
+  relative_pos[2] = 0;
+  log_set_motors = 0;
 
   controllerPidInit();
   backprop_tools_init();
@@ -260,6 +266,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   control_invocation_interval += (1-CONTROL_INVOCATION_INTERVAL_ALPHA) * (now - timestamp_last_control_invocation);
   timestamp_last_control_invocation = now;
   bool set_motors = (now - timestamp_last_control_packet_received < CONTROL_PACKET_TIMEOUT_USEC)  || (set_motors_overwrite == 1 && motor_cmd_divider >= 3);
+  log_set_motors = set_motors ? 1 : 0;
   set_backprop_tools_overwrite_stabilizer(set_motors);
   if(!prev_set_motors && set_motors){
     timestamp_last_waypoint = now;
@@ -283,6 +290,9 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     target_pos[1] = origin[1];
     target_pos[2] = origin[2];
   }
+  relative_pos[0] = state->position.x - origin[0];
+  relative_pos[1] = state->position.y - origin[1];
+  relative_pos[2] = state->position.z - origin[2];
 
   trigger_every(tick);
   prev_set_motors = set_motors;
@@ -338,42 +348,49 @@ PARAM_ADD(PARAM_UINT8, wn, &waypoint_navigation)
 PARAM_ADD(PARAM_FLOAT, ts, &trajectory_scale)
 PARAM_GROUP_STOP(bpt)
 
-LOG_GROUP_START(bptp)
-LOG_ADD(LOG_FLOAT, x, &state_input[0])
-LOG_ADD(LOG_FLOAT, y, &state_input[1])
-LOG_ADD(LOG_FLOAT, z, &state_input[2])
-LOG_GROUP_STOP(bptp)
+// LOG_GROUP_START(bptp)
+// LOG_ADD(LOG_FLOAT, x, &state_input[0])
+// LOG_ADD(LOG_FLOAT, y, &state_input[1])
+// LOG_ADD(LOG_FLOAT, z, &state_input[2])
+// LOG_GROUP_STOP(bptp)
 
-LOG_GROUP_START(bptq)
-LOG_ADD(LOG_FLOAT, w, &state_input[3])
-LOG_ADD(LOG_FLOAT, x, &state_input[4])
-LOG_ADD(LOG_FLOAT, y, &state_input[5])
-LOG_ADD(LOG_FLOAT, z, &state_input[6])
-LOG_GROUP_STOP(bptq)
+// LOG_GROUP_START(bptq)
+// LOG_ADD(LOG_FLOAT, w, &state_input[3])
+// LOG_ADD(LOG_FLOAT, x, &state_input[4])
+// LOG_ADD(LOG_FLOAT, y, &state_input[5])
+// LOG_ADD(LOG_FLOAT, z, &state_input[6])
+// LOG_GROUP_STOP(bptq)
 
-LOG_GROUP_START(bpttwl)
-LOG_ADD(LOG_FLOAT, x, &state_input[7])
-LOG_ADD(LOG_FLOAT, y, &state_input[8])
-LOG_ADD(LOG_FLOAT, z, &state_input[9])
-LOG_GROUP_STOP(bpttwl)
+// LOG_GROUP_START(bpttwl)
+// LOG_ADD(LOG_FLOAT, x, &state_input[7])
+// LOG_ADD(LOG_FLOAT, y, &state_input[8])
+// LOG_ADD(LOG_FLOAT, z, &state_input[9])
+// LOG_GROUP_STOP(bpttwl)
 
-LOG_GROUP_START(bpttwa)
-LOG_ADD(LOG_FLOAT, x, &state_input[10])
-LOG_ADD(LOG_FLOAT, y, &state_input[11])
-LOG_ADD(LOG_FLOAT, z, &state_input[12])
-LOG_GROUP_STOP(bpttwa)
+// LOG_GROUP_START(bpttwa)
+// LOG_ADD(LOG_FLOAT, x, &state_input[10])
+// LOG_ADD(LOG_FLOAT, y, &state_input[11])
+// LOG_ADD(LOG_FLOAT, z, &state_input[12])
+// LOG_GROUP_STOP(bpttwa)
 
-LOG_GROUP_START(bptt)
-LOG_ADD(LOG_FLOAT, x, &target_pos[0])
-LOG_ADD(LOG_FLOAT, y, &target_pos[1])
-LOG_ADD(LOG_FLOAT, z, &target_pos[2])
-LOG_GROUP_STOP(bptt)
+// LOG_GROUP_START(bptt)
+// LOG_ADD(LOG_FLOAT, x, &target_pos[0])
+// LOG_ADD(LOG_FLOAT, y, &target_pos[1])
+// LOG_ADD(LOG_FLOAT, z, &target_pos[2])
+// LOG_GROUP_STOP(bptt)
 
 
-LOG_GROUP_START(bptm)
-LOG_ADD(LOG_UINT16, m1, &motor_cmd[0])
-LOG_ADD(LOG_UINT16, m2, &motor_cmd[1])
-LOG_ADD(LOG_UINT16, m3, &motor_cmd[2])
-LOG_ADD(LOG_UINT16, m4, &motor_cmd[3])
-LOG_GROUP_STOP(bptm)
+// LOG_GROUP_START(bptm)
+// LOG_ADD(LOG_UINT16, m1, &motor_cmd[0])
+// LOG_ADD(LOG_UINT16, m2, &motor_cmd[1])
+// LOG_ADD(LOG_UINT16, m3, &motor_cmd[2])
+// LOG_ADD(LOG_UINT16, m4, &motor_cmd[3])
+// LOG_GROUP_STOP(bptm)
+
+LOG_GROUP_START(bptrp)
+LOG_ADD(LOG_FLOAT, x, &relative_pos[0])
+LOG_ADD(LOG_FLOAT, y, &relative_pos[1])
+LOG_ADD(LOG_FLOAT, z, &relative_pos[2])
+LOG_ADD(LOG_UINT8, sm, &log_set_motors)
+LOG_GROUP_STOP(bptrp)
 
