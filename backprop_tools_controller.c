@@ -180,7 +180,7 @@ void controllerOutOfTreeInit(void){
   control_invocation_interval = 0;
   forward_tick = 0;
   hand_test = 0;
-  waypoint_navigation = 1;
+  waypoint_navigation = 0;
   timestamp_last_waypoint = 0;
   trajectory_scale = 0.5;
   relative_pos[0] = 0;
