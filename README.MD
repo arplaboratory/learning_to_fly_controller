@@ -26,9 +26,14 @@ docker run --rm -it -v $(pwd):/module bitcraze/builder bash -c "make -j8"
 
 Flash natively
 ```
+CLOAD_CMDS="-w radio://0/80/2M" make cload
+```
+
+Note the cload script is needed on Apple Silicon Macs because the x86_64 version of Python and the cfclient library are required for flashing using the CrazyRadio
+
+```
 CLOAD_CMDS="-w radio://0/80/2M" CLOAD_SCRIPT="/usr/local/bin/python3.9 -m cfloader" make cload
 ```
-Note the cload script is needed on Apple Silicon Macs because the x86_64 version of Python and the cfclient library are required for flashing using the CrazyRadio
 
 
 
