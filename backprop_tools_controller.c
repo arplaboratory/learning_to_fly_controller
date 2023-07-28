@@ -168,7 +168,7 @@ void learned_controller_packet_received(){
 void controllerOutOfTreeInit(void){
   controller_state = STATE_RESET;
   controller_tick = 0;
-  motor_cmd_divider = 1.05;
+  motor_cmd_divider = 15;
   motor_cmd[0] = 0;
   motor_cmd[1] = 0;
   motor_cmd[2] = 0;

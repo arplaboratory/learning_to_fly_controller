@@ -2,3 +2,4 @@ build
 *.o
 *.o.cmd
 .vscode/settings.json
+venv
