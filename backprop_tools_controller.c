@@ -25,7 +25,7 @@
 #define MIN_RPM 0
 #define MAX_RPM 21702.1
 // #define WAYPOINT_NAVIGATION
-static uint8_t waypoint_navigation = 0;
+// static uint8_t waypoint_navigation = 0;
 #define WAYPOINT_NAVIGATION_POINT_DURATION (4 * 1000 * 1000)
 #define WAYPOINT_NAVIGATION_POINTS (5)
 
@@ -60,6 +60,14 @@ static float control_invocation_interval = 0;
 static float target_pos[3] = {0, 0, 0};
 static float relative_pos[3] = {0, 0, 0};
 static float origin[3] = {0, 0, 0};
+
+enum Mode{
+  POSITION = 0,
+  WAYPOINT_NAVIGATION = 1,
+  WAYPOINT_NAVIGATION_DYNAMIC = 2,
+  FIGURE_EIGHT = 3
+};
+static uint8_t mode = POSITION;
 static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
   {0.0, 0.0, 0.0},
   {1.0, 0.0, 0.0},
@@ -67,9 +75,12 @@ static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
   {0.0, 1.0, 0.0},
   {0.0, 0.0, 0.0},
 };
+static uint8_t waypoint_navigation_dynamic_current_waypoint = 0;
+static float waypoint_navigation_dynamic_threshold = 0.1;
+static float figure_eight_interval = 5.5;
 static float trajectory_scale = 0.5;
 static float target_height = 0.3;
-static uint64_t timestamp_last_waypoint;
+static uint64_t timestamp_last_waypoint, timestamp_controller_activation;
 static uint8_t log_set_motors = 0;
 
 // NN input
@@ -180,13 +191,16 @@ void controllerOutOfTreeInit(void){
   control_invocation_interval = 0;
   forward_tick = 0;
   hand_test = 0;
-  waypoint_navigation = 0;
   timestamp_last_waypoint = 0;
   trajectory_scale = 0.5;
   relative_pos[0] = 0;
   relative_pos[1] = 0;
   relative_pos[2] = 0;
   log_set_motors = 0;
+
+  mode = POSITION;
+  waypoint_navigation_dynamic_current_waypoint = 0;
+  waypoint_navigation_dynamic_threshold = 0;
 
   controllerPidInit();
   backprop_tools_init();
@@ -270,29 +284,71 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   set_backprop_tools_overwrite_stabilizer(set_motors);
   if(!prev_set_motors && set_motors){
     timestamp_last_waypoint = now;
+    timestamp_controller_activation = now;
+    waypoint_navigation_dynamic_current_waypoint = 0;
     origin[0] = state->position.x;
     origin[1] = state->position.y;
     origin[2] = state->position.z + target_height;
     DEBUG_PRINT("Controller activated\n");
+    switch(mode){
+      case POSITION:
+        DEBUG_PRINT("POSITION mode\n");
+        break;
+      case WAYPOINT_NAVIGATION:
+        DEBUG_PRINT("WAYPOINT_NAVIGATION mode\n");
+        break;
+      case WAYPOINT_NAVIGATION_DYNAMIC:
+        DEBUG_PRINT("WAYPOINT_NAVIGATION_DYNAMIC mode\n");
+        break;
+      case FIGURE_EIGHT:
+        DEBUG_PRINT("FIGURE_EIGHT mode\n");
+        break;
+    }
   }
   if(prev_set_motors && !set_motors){
     DEBUG_PRINT("Controller deactivated\n");
   }
-  if(waypoint_navigation){
-    uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
-    int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
-    target_pos[0] = trajectory[current_point][0] * trajectory_scale + origin[0];
-    target_pos[1] = trajectory[current_point][1] * trajectory_scale + origin[1];
-    target_pos[2] = trajectory[current_point][2] * trajectory_scale + origin[2];
-  }
-  else{
-    target_pos[0] = origin[0];
-    target_pos[1] = origin[1];
-    target_pos[2] = origin[2];
-  }
   relative_pos[0] = state->position.x - origin[0];
   relative_pos[1] = state->position.y - origin[1];
   relative_pos[2] = state->position.z - origin[2];
+  switch(mode){
+    case POSITION:
+      target_pos[0] = origin[0];
+      target_pos[1] = origin[1];
+      target_pos[2] = origin[2];
+      break;
+    case WAYPOINT_NAVIGATION:
+      uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
+      int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
+      target_pos[0] = trajectory[current_point][0] * trajectory_scale + origin[0];
+      target_pos[1] = trajectory[current_point][1] * trajectory_scale + origin[1];
+      target_pos[2] = trajectory[current_point][2] * trajectory_scale + origin[2];
+      break;
+    case WAYPOINT_NAVIGATION_DYNAMIC:
+      {
+        float x = relative_pos[0] - trajectory[waypoint_navigation_dynamic_current_waypoint][0];
+        float y = relative_pos[1] - trajectory[waypoint_navigation_dynamic_current_waypoint][1];
+        float z = relative_pos[2] - trajectory[waypoint_navigation_dynamic_current_waypoint][2];
+
+        float current_dist = sqrtf(x*x + y*y + z*z);
+        if(current_dist < waypoint_navigation_dynamic_threshold){
+          waypoint_navigation_dynamic_current_waypoint = (waypoint_navigation_dynamic_current_waypoint + 1) % WAYPOINT_NAVIGATION_POINTS;
+          DEBUG_PRINT("Next waypoint %d, [%f, %f, %f]\n", waypoint_navigation_dynamic_current_waypoint, trajectory[waypoint_navigation_dynamic_current_waypoint][0], trajectory[waypoint_navigation_dynamic_current_waypoint][1], trajectory[waypoint_navigation_dynamic_current_waypoint][2]);
+        }
+        target_pos[0] = trajectory[waypoint_navigation_dynamic_current_waypoint][0];
+        target_pos[1] = trajectory[waypoint_navigation_dynamic_current_waypoint][1];
+        target_pos[2] = trajectory[waypoint_navigation_dynamic_current_waypoint][2];
+      }
+      break;
+    case FIGURE_EIGHT:
+      {
+        float t = (now - timestamp_controller_activation) / 1000000.0f;
+        target_pos[0] = cosf(t);
+        target_pos[1] = sinf(2*t) / 2.0f;
+        target_pos[2] = origin[2];
+      }
+      break;
+  }
 
   trigger_every(tick);
   prev_set_motors = set_motors;
@@ -346,6 +402,8 @@ PARAM_ADD(PARAM_UINT8, smo, &set_motors_overwrite)
 PARAM_ADD(PARAM_UINT8, ht, &hand_test)
 PARAM_ADD(PARAM_UINT8, wn, &waypoint_navigation)
 PARAM_ADD(PARAM_FLOAT, ts, &trajectory_scale)
+PARAM_ADD(PARAM_FLOAT, wpt, &waypoint_navigation_dynamic_threshold)
+PARAM_ADD(PARAM_FLOAT, fei, &figure_eight_interval)
 PARAM_GROUP_STOP(bpt)
 
 // LOG_GROUP_START(bptp)
@@ -392,5 +450,11 @@ LOG_ADD(LOG_FLOAT, x, &relative_pos[0])
 LOG_ADD(LOG_FLOAT, y, &relative_pos[1])
 LOG_ADD(LOG_FLOAT, z, &relative_pos[2])
 LOG_ADD(LOG_UINT8, sm, &log_set_motors)
+LOG_GROUP_STOP(bptrp)
+
+LOG_GROUP_START(bpttp)
+LOG_ADD(LOG_FLOAT, x, &target_pos[0])
+LOG_ADD(LOG_FLOAT, y, &target_pos[1])
+LOG_ADD(LOG_FLOAT, z, &target_pos[2])
 LOG_GROUP_STOP(bptrp)
 
