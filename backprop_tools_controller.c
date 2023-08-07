@@ -17,6 +17,7 @@
 #define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
 #define POS_DISTANCE_LIMIT 0.2f
+#define VEL_DISTANCE_LIMIT 1.0f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
@@ -58,6 +59,8 @@ static float control_invocation_interval = 0;
 
 // Control variables: input
 static float target_pos[3] = {0, 0, 0};
+static float target_vel[3] = {0, 0, 0};
+static float pos_error[3] = {0, 0, 0};
 static float relative_pos[3] = {0, 0, 0};
 static float origin[3] = {0, 0, 0};
 
@@ -78,6 +81,7 @@ static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
 static uint8_t waypoint_navigation_dynamic_current_waypoint = 0;
 static float waypoint_navigation_dynamic_threshold = 0.1;
 static float figure_eight_interval = 5.5;
+static float figure_eight_scale = 1.0;
 static float trajectory_scale = 0.5;
 static float target_height = 0.3;
 static uint64_t timestamp_last_waypoint, timestamp_controller_activation;
@@ -149,9 +153,9 @@ static inline void update_state(const sensorData_t* sensors, const state_t* stat
     state_input[ 6] = 0;
   }
   if(hand_test == 0){
-    state_input[ 7] = state->velocity.x;
-    state_input[ 8] = state->velocity.y;
-    state_input[ 9] = state->velocity.z;
+    state_input[ 7] = clip(state->velocity.x - target_vel[0], -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
+    state_input[ 8] = clip(state->velocity.y - target_vel[1], -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
+    state_input[ 9] = clip(state->velocity.z - target_vel[2], -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
   }
   else{
     state_input[ 7] = 0;
@@ -201,6 +205,9 @@ void controllerOutOfTreeInit(void){
   mode = POSITION;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
+
+  figure_eight_interval = 5.5;
+  figure_eight_scale = 1;
 
   controllerPidInit();
   backprop_tools_init();
@@ -318,11 +325,13 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       target_pos[2] = origin[2];
       break;
     case WAYPOINT_NAVIGATION:
+    {
       uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
       int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
       target_pos[0] = trajectory[current_point][0] * trajectory_scale + origin[0];
       target_pos[1] = trajectory[current_point][1] * trajectory_scale + origin[1];
       target_pos[2] = trajectory[current_point][2] * trajectory_scale + origin[2];
+    }
       break;
     case WAYPOINT_NAVIGATION_DYNAMIC:
       {
@@ -335,20 +344,26 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
           waypoint_navigation_dynamic_current_waypoint = (waypoint_navigation_dynamic_current_waypoint + 1) % WAYPOINT_NAVIGATION_POINTS;
           DEBUG_PRINT("Next waypoint %d, [%f, %f, %f]\n", waypoint_navigation_dynamic_current_waypoint, trajectory[waypoint_navigation_dynamic_current_waypoint][0], trajectory[waypoint_navigation_dynamic_current_waypoint][1], trajectory[waypoint_navigation_dynamic_current_waypoint][2]);
         }
-        target_pos[0] = trajectory[waypoint_navigation_dynamic_current_waypoint][0];
-        target_pos[1] = trajectory[waypoint_navigation_dynamic_current_waypoint][1];
-        target_pos[2] = trajectory[waypoint_navigation_dynamic_current_waypoint][2];
+        target_pos[0] = origin[0] + trajectory[waypoint_navigation_dynamic_current_waypoint][0];
+        target_pos[1] = origin[1] + trajectory[waypoint_navigation_dynamic_current_waypoint][1];
+        target_pos[2] = origin[2] + trajectory[waypoint_navigation_dynamic_current_waypoint][2];
       }
       break;
     case FIGURE_EIGHT:
       {
         float t = (now - timestamp_controller_activation) / 1000000.0f;
-        target_pos[0] = cosf(t);
-        target_pos[1] = sinf(2*t) / 2.0f;
+        float progress = t/figure_eight_interval;
+        target_pos[1] = origin[1] + cosf(progress*2*M_PI + M_PI / 2) * figure_eight_scale;
+        target_vel[1] = -sinf(progress*2*M_PI + M_PI / 2) * figure_eight_scale * 2 * M_PI / figure_eight_interval;
+        target_pos[0] = origin[0] + sinf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale;
+        target_vel[0] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale * 4 * M_PI / figure_eight_interval;
         target_pos[2] = origin[2];
       }
       break;
   }
+  pos_error[0] = target_pos[0] - state->position.x;
+  pos_error[1] = target_pos[1] - state->position.y;
+  pos_error[2] = target_pos[2] - state->position.z;
 
   trigger_every(tick);
   prev_set_motors = set_motors;
@@ -400,10 +415,11 @@ PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
 PARAM_ADD(PARAM_UINT8, smo, &set_motors_overwrite)
 PARAM_ADD(PARAM_UINT8, ht, &hand_test)
-PARAM_ADD(PARAM_UINT8, wn, &waypoint_navigation)
+PARAM_ADD(PARAM_UINT8, wn, &mode)
 PARAM_ADD(PARAM_FLOAT, ts, &trajectory_scale)
 PARAM_ADD(PARAM_FLOAT, wpt, &waypoint_navigation_dynamic_threshold)
 PARAM_ADD(PARAM_FLOAT, fei, &figure_eight_interval)
+PARAM_ADD(PARAM_FLOAT, fes, &figure_eight_scale)
 PARAM_GROUP_STOP(bpt)
 
 // LOG_GROUP_START(bptp)
@@ -457,4 +473,10 @@ LOG_ADD(LOG_FLOAT, x, &target_pos[0])
 LOG_ADD(LOG_FLOAT, y, &target_pos[1])
 LOG_ADD(LOG_FLOAT, z, &target_pos[2])
 LOG_GROUP_STOP(bptrp)
+
+LOG_GROUP_START(bptte)
+LOG_ADD(LOG_FLOAT, x, &pos_error[0])
+LOG_ADD(LOG_FLOAT, y, &pos_error[1])
+LOG_ADD(LOG_FLOAT, z, &pos_error[2])
+LOG_GROUP_STOP(bptre)
 
