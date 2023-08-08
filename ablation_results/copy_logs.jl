@@ -29,3 +29,5 @@ begin
 last_n = 1
 cp(logs[end - last_n + 1][1], "ablation_results/logs/$(basename(logs[end - last_n + 1][1]))")
 end
+
+

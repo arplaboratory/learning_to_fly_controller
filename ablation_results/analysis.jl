@@ -6,18 +6,16 @@ using Statistics
 
 
 flights_names = [
-    "ablation-tracking_error-20230808T15-27-50.csv",
-    "ablation-tracking_error-20230808T15-29-45.csv",
-    "ablation-tracking_error-20230808T15-33-19.csv",
-    "ablation-tracking_error-20230808T15-43-29.csv",
-    # "ablation-tracking_error-20230808T15-46-15.csv",
-    # "ablation-tracking_error-20230808T15-49-23.csv",
-    nothing,
-    nothing,
-    nothing,
-    "ablation-tracking_error-20230808T15-51-27.csv",
-    "ablation-tracking_error-20230808T15-53-57.csv",
-    "ablation-tracking_error-20230808T15-56-32.csv",
+"ablation-tracking_error-20230808T15-27-50.csv",
+"ablation-tracking_error-20230808T15-29-45.csv",
+"ablation-tracking_error-20230808T15-33-19.csv",
+"ablation-tracking_error-20230808T15-43-29.csv",
+"ablation-tracking_error-20230808T21-14-38.csv",
+"ablation-tracking_error-20230808T21-18-24.csv",
+"ablation-tracking_error-20230808T21-12-06.csv",
+"ablation-tracking_error-20230808T21-00-10.csv",
+"ablation-tracking_error-20230808T21-03-38.csv",
+"ablation-tracking_error-20230808T15-56-32.csv",
 ]
 
 
@@ -50,6 +48,7 @@ flight_data_processed = map(flight_data_raw) do d
     end
     start_index = findfirst(cs .== sequences[argmax(sequence_lengths)])
     end_index = start_index + argmax(sm[start_index:end] .== 0) - 2
+    println("$(d[:name]) length: $(end_index - start_index) samples")
 
     # plt = plot(cs)
     plt = plot([start_index, end_index], [3, 3])
@@ -76,7 +75,7 @@ RMSEs = map(flight_data_processed) do d
     plt = plot(df."bptte.x", df."bptte.y")
     title!(plt, d[:name])
     display(plt)
-    mse = mean(df."bptte.x".^2 .+ df."bptte.y".^2)
+    mse = sqrt(mean(df."bptte.x".^2 .+ df."bptte.y".^2))
 end
 
 
