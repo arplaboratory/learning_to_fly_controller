@@ -2,6 +2,7 @@ using CSV
 using DataFrames
 using Plots
 using Statistics
+using JSON
 
 
 
@@ -148,3 +149,15 @@ rmses = Dict([(k, analyze(v)) for (k, v) in database])
 medians = Dict([(k, median(v)) for (k, v) in rmses])
 stds = Dict([(k, std(v)) for (k, v) in rmses])
 means = Dict([(k, mean(v)) for (k, v) in rmses])
+
+
+results = JSON.json(Dict(
+    "rmses" => rmses,
+    "medians" => medians,
+    "stds" => stds,
+    "means" => means
+))
+
+open("ablation_results/results.json", "w") do f
+    write(f, results)
+end
