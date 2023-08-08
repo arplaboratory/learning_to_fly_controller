@@ -81,11 +81,8 @@
 
 Lissajous
 
-1x speed: baseline seed 1
-ablation-tracking_error-20230808T22-03-42.csv
+baseline seed 1
 
-3.5s:
-ablation-tracking_error-20230808T22-11-12.csv
-
-15s (3min)
-ablation-tracking_error-20230808T22-14-18.csv
+ablation-lissajous-20230808T22-53-40.csv", "Lissajous Tracking (5s)"
+ablation-lissajous-20230808T22-57-36.csv", "Lissajous Tracking (3.5s)"
+ablation-lissajous-20230808T23-08-38.csv", "Lissajous Tracking (15s)"
