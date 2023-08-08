@@ -5,3 +5,5 @@ build
 venv
 ablation_data
 *.tar.gz
+
+ablation_data*

@@ -88,7 +88,6 @@ The name of the added button is `learnedController` but it is not available in t
 Beware that there is a motor divider parameter that is set to a high value leading to low motor outputs by default. To "arm" the controller, change the parameter under the `bpt` group in the cfclient UI.
 
 # Vicon
-```
 Run the vicon client:
 ```
 rosrun mocap_vicon vicon.launch
@@ -106,3 +105,19 @@ Set the `stabilizer.estimator` parameter to EKF so that the external position re
 
 
 Test the angular rate response using the ht (hand test) parameter in the firmware (check the hand_test var in the controller code to see the options)
+
+
+
+Extract checkpoints
+
+```
+find * | grep actor_000000000500000.h$ > /tmp/files
+find * | grep actor_000000001500000.h$ >> /tmp/files
+tar czvf checkpoints.tar.gz -T /tmp/files
+```
+
+
+```
+cp ablation_data_organized/d+o+a+r+h+c+f+/000000000500000/0.h data/actor.h && make -j8 && CLOAD_CMDS="-w radio:
+//0/80/2M" make cload
+```
