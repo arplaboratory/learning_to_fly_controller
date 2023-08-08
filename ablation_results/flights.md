@@ -51,6 +51,7 @@
 
 
 # d+o-a+r+h+c-f+ (butter smooth)
+## 1500000
 0. ablation-tracking_error-20230808T19-44-11.csv
 1. ablation-tracking_error-20230808T19-48-54.csv
 2. ablation-tracking_error-20230808T19-51-52.csv
@@ -61,4 +62,18 @@
 7. ablation-tracking_error-20230808T20-08-38.csv
 8. ablation-tracking_error-20230808T20-11-59.csv
 9. ablation-tracking_error-20230808T20-16-44.csv
+
+# d-o+a+r+h+c-f+ (butter smooth)
+## 1500000
+0. ablation-tracking_error-20230808T20-21-33.csv
+1. ablation-tracking_error-20230808T20-24-16.csv
+2. ablation-tracking_error-20230808T20-28-20.csv
+3. ablation-tracking_error-20230808T20-37-13.csv
+4. ablation-tracking_error-20230808T20-34-16.csv
+5. ablation-tracking_error-20230808T20-39-57.csv
+6. ablation-tracking_error-20230808T20-42-43.csv
+7. ablation-tracking_error-20230808T20-45-24.csv
+8. ablation-tracking_error-20230808T20-48-31.csv
+9. ablation-tracking_error-20230808T20-50-57.csv
+
 
