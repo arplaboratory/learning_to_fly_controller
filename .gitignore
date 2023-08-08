@@ -3,3 +3,5 @@ build
 *.o.cmd
 .vscode/settings.json
 venv
+ablation_data
+*.tar.gz

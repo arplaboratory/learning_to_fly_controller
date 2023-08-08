@@ -318,6 +318,9 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   relative_pos[0] = state->position.x - origin[0];
   relative_pos[1] = state->position.y - origin[1];
   relative_pos[2] = state->position.z - origin[2];
+  target_vel[0] = 0;
+  target_vel[1] = 0;
+  target_vel[2] = 0;
   switch(mode){
     case POSITION:
       target_pos[0] = origin[0];
