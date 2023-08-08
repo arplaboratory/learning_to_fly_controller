@@ -78,3 +78,14 @@
 9. ablation-tracking_error-20230808T20-50-57.csv
 
 
+
+Lissajous
+
+1x speed: baseline seed 1
+ablation-tracking_error-20230808T22-03-42.csv
+
+3.5s:
+ablation-tracking_error-20230808T22-11-12.csv
+
+15s (3min)
+ablation-tracking_error-20230808T22-14-18.csv
