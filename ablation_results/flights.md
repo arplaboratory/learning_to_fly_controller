@@ -22,3 +22,28 @@
 7. ablation-tracking_error-20230808T16-55-11.csv (crash)
 8. ablation-tracking_error-20230808T16-56-36.csv (drifting)
 9. ablation-tracking_error-20230808T16-59-29.csv (crash)
+
+# d+o+a+r-h-c-f+
+
+## 1500000
+0. (crash, instant flip)
+1. (crash, instant flip)
+2. (crash, instant flip)
+3. (crash, instant flip)
+4. (crash, instant flip)
+5. (crash, instant flip)
+
+
+# d+o+a-r+h+c-f+ (HEAVILY OSCILLATING)
+
+## 1500000
+0. ablation-tracking_error-20230808T19-17-18.csv
+1. ablation-tracking_error-20230808T19-19-51.csv (drifting)
+2. ablation-tracking_error-20230808T19-22-31.csv
+3. ablation-tracking_error-20230808T19-25-15.csv
+4. ablation-tracking_error-20230808T19-27-03.csv
+5. ablation-tracking_error-20230808T19-29-37.csv
+6. ablation-tracking_error-20230808T19-32-13.csv
+7. ablation-tracking_error-20230808T19-35-19.csv
+8. ablation-tracking_error-20230808T19-37-51.csv
+9. ablation-tracking_error-20230808T19-40-51.csv
