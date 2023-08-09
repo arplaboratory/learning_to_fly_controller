@@ -112,6 +112,11 @@ ablation-lissajous-20230808T22-53-40.csv", "Lissajous Tracking (5s)"
 ablation-lissajous-20230808T22-57-36.csv", "Lissajous Tracking (3.5s)"
 ablation-lissajous-20230808T23-08-38.csv", "Lissajous Tracking (15s)"
 
+slow start:
+
+5.5s: ablation-lissajous-20230810T01-04-25.csv
+3.5s: ablation-lissajous-20230810T01-07-33.csv
+
 # after bitflip (ablation 9)
 # d+o+a+r+h+c-f-
 ## 1500000
@@ -137,3 +142,4 @@ ablation-lissajous-20230808T23-08-38.csv", "Lissajous Tracking (15s)"
  7. ablation-tracking_error-20230809T23-59-51.csv
  8. ablation-tracking_error-20230810T00-02-34.csv
  9. ablation-tracking_error-20230810T00-04-22.csv
+

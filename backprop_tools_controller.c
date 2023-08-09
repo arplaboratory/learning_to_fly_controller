@@ -83,6 +83,8 @@ static float waypoint_navigation_dynamic_threshold = 0.1;
 static float figure_eight_interval = 5.5;
 static float figure_eight_scale = 1.0;
 static float trajectory_scale = 0.5;
+static float figure_eight_progress = 0;
+static uint64_t figure_eight_last_invocation;
 static float target_height = 0.3;
 static uint64_t timestamp_last_waypoint, timestamp_controller_activation;
 static uint8_t log_set_motors = 0;
@@ -208,6 +210,7 @@ void controllerOutOfTreeInit(void){
 
   figure_eight_interval = 5.5;
   figure_eight_scale = 1;
+  figure_eight_progress = 0;
 
   controllerPidInit();
   backprop_tools_init();
@@ -296,6 +299,8 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     origin[0] = state->position.x;
     origin[1] = state->position.y;
     origin[2] = state->position.z + target_height;
+    figure_eight_last_invocation = now;
+    figure_eight_progress = 0;
     DEBUG_PRINT("Controller activated\n");
     switch(mode){
       case POSITION:
@@ -355,12 +360,20 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     case FIGURE_EIGHT:
       {
         float t = (now - timestamp_controller_activation) / 1000000.0f;
-        float progress = t/figure_eight_interval;
+        float dt = (now - figure_eight_last_invocation) / 1000000.0f;
+        float speed = figure_eight_interval;
+        float warmup_time = 4; 
+        if(t < warmup_time){
+          speed = (warmup_time - t)/warmup_time * figure_eight_interval * 10 + figure_eight_interval;
+        }
+        figure_eight_progress += dt * 1.0/speed;
+        float progress = figure_eight_progress;
         target_pos[1] = origin[1] + cosf(progress*2*M_PI + M_PI / 2) * figure_eight_scale;
-        target_vel[1] = -sinf(progress*2*M_PI + M_PI / 2) * figure_eight_scale * 2 * M_PI / figure_eight_interval;
+        target_vel[1] = -sinf(progress*2*M_PI + M_PI / 2) * figure_eight_scale * 2 * M_PI / speed;
         target_pos[0] = origin[0] + sinf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale;
-        target_vel[0] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale * 4 * M_PI / figure_eight_interval;
+        target_vel[0] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale * 4 * M_PI / speed;
         target_pos[2] = origin[2];
+        figure_eight_last_invocation = now;
       }
       break;
   }
