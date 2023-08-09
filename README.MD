@@ -111,9 +111,9 @@ Test the angular rate response using the ht (hand test) parameter in the firmwar
 Extract checkpoints
 
 ```
-find * | grep actor_000000000500000.h$ > /tmp/files
-find * | grep actor_000000001500000.h$ >> /tmp/files
-tar czvf checkpoints.tar.gz -T /tmp/files
+find * | grep actor_000000000500000.h$ > ~/tmp/files
+find * | grep actor_000000001500000.h$ >> ~/tmp/files
+tar czvf checkpoints.tar.gz -T ~/tmp/files
 ```
 
 

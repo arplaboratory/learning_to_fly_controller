@@ -1,4 +1,4 @@
-files = readdir("ablation_data_raw", join=true)
+files = readdir("ablation_data_9", join=true)
 
 parsed = map(files) do file
     m = match(r"multirotor_td3_([^_]+)_([0-9]+)$", file)
@@ -18,7 +18,7 @@ for file in parsed
         m = match(r"actor_([0-9]+).h$", checkpoint)
         println(m)
         @assert !isnothing(m)
-        new_path = joinpath("ablation_data_organized", env, m[1])
+        new_path = joinpath("ablation_data_organized_9", env, m[1])
         println("making path $new_path")
         mkpath(new_path)
 

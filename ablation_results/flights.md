@@ -51,7 +51,7 @@
 
 
 
-# d+o-a+r+h+c-f+ (butter smooth)
+# d+o-a+r+h+c-f+
 ## 1500000
 0. ablation-tracking_error-20230808T19-44-11.csv
 1. ablation-tracking_error-20230808T19-48-54.csv
@@ -64,7 +64,7 @@
 8. ablation-tracking_error-20230808T20-11-59.csv
 9. ablation-tracking_error-20230808T20-16-44.csv
 
-# d-o+a+r+h+c-f+ (butter smooth)
+# d-o+a+r+h+c-f+
 ## 1500000
 0. ablation-tracking_error-20230808T21-35-41.csv
 1. ablation-tracking_error-20230808T20-24-16.csv
@@ -77,6 +77,31 @@
 8. ablation-tracking_error-20230808T20-48-31.csv
 9. ablation-tracking_error-20230808T20-50-57.csv
 
+# d-o+a+r+h+c-f+
+## 1500000
+0. ablation-tracking_error-20230809T18-25-14.csv
+1. ablation-tracking_error-20230809T18-29-43.csv
+2. ablation-tracking_error-20230809T18-39-30.csv
+3. ablation-tracking_error-20230809T18-41-30.csv
+4. ablation-tracking_error-20230809T18-46-06.csv
+5. ablation-tracking_error-20230809T18-48-57.csv
+6. ablation-tracking_error-20230809T19-01-35.csv
+7. ablation-tracking_error-20230809T18-51-38.csv
+8. ablation-tracking_error-20230809T18-57-50.csv
+9. ablation-tracking_error-20230809T18-58-33.csv
+
+# d+o+a+r+h+c-f+
+# 500000
+0. ablation-tracking_error-20230809T23-21-41.csv
+1. ablation-tracking_error-20230809T23-24-53.csv
+2. ablation-tracking_error-20230809T23-27-47.csv
+3. ablation-tracking_error-20230809T23-28-55.csv
+4. ablation-tracking_error-20230809T23-31-21.csv
+5. ablation-tracking_error-20230809T23-33-06.csv
+6. ablation-tracking_error-20230809T23-35-54.csv
+7. ablation-tracking_error-20230809T23-39-10.csv
+8. ablation-tracking_error-20230809T23-40-37.csv
+9. ablation-tracking_error-20230809T23-42-10.csv
 
 
 Lissajous
@@ -86,3 +111,29 @@ baseline seed 1
 ablation-lissajous-20230808T22-53-40.csv", "Lissajous Tracking (5s)"
 ablation-lissajous-20230808T22-57-36.csv", "Lissajous Tracking (3.5s)"
 ablation-lissajous-20230808T23-08-38.csv", "Lissajous Tracking (15s)"
+
+# after bitflip (ablation 9)
+# d+o+a+r+h+c-f-
+## 1500000
+0. ablation-tracking_error-20230809T22-34-30.csv
+1. ablation-tracking_error-20230809T22-35-21.csv
+2. ablation-tracking_error-20230809T22-44-51.csv
+3. ablation-tracking_error-20230809T22-47-45.csv
+4. ablation-tracking_error-20230809T22-51-02.csv
+5. ablation-tracking_error-20230809T22-55-44.csv
+6. ablation-tracking_error-20230809T22-58-03.csv
+7. ablation-tracking_error-20230809T23-00-28.csv
+8. ablation-tracking_error-20230809T23-02-57.csv
+9. ablation-tracking_error-20230809T23-14-14.csv
+
+## 500000
+ 0. ablation-tracking_error-20230809T23-47-38.csv
+ 1. ablation-tracking_error-20230809T23-49-51.csv
+ 2. ablation-tracking_error-20230809T23-51-22.csv
+ 3. ablation-tracking_error-20230809T23-52-38.csv
+ 4. ablation-tracking_error-20230809T23-54-05.csv
+ 5. ablation-tracking_error-20230809T23-55-32.csv
+ 6. ablation-tracking_error-20230809T23-57-57.csv
+ 7. ablation-tracking_error-20230809T23-59-51.csv
+ 8. ablation-tracking_error-20230810T00-02-34.csv
+ 9. ablation-tracking_error-20230810T00-04-22.csv
