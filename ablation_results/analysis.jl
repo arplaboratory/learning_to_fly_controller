@@ -103,6 +103,7 @@ function analyze(flights_names)
         start_index = findfirst(cs .== sequences[argmax(sequence_lengths)])
         end_index = start_index + argmax(sm[start_index:end] .== 0) - 2
         println("$(d[:name]) length: $(end_index - start_index) samples")
+        flying_time = df."Timestamp"[end_index] - df."Timestamp"[start_index]
 
         # plt = plot(cs)
         plt = plot([start_index, end_index], [3, 3])
@@ -113,6 +114,7 @@ function analyze(flights_names)
         df_trunc = df[start_index:end_index, :]
         d_out = deepcopy(d)
         d_out[:df] = df_trunc
+        d_out[:time] = flying_time
         d_out
     end
 
@@ -131,7 +133,9 @@ function analyze(flights_names)
         display(plt)
         mse = sqrt(mean(df."bptte.x".^2 .+ df."bptte.y".^2))
     end
-    RMSEs
+    Dict(
+        :rmses => RMSEs
+    )
 end
 
 
@@ -144,11 +148,11 @@ flights_names = database["Rotor Delay"]
 flights_names = database["Observation Noise"]
 flights_names = database["Disturbance"]
 
-rmses = Dict([(k, analyze(v)) for (k, v) in database])
+analyzed_data = Dict([(k, analyze(v)) for (k, v) in database])
 
-medians = Dict([(k, median(v)) for (k, v) in rmses])
-stds = Dict([(k, std(v)) for (k, v) in rmses])
-means = Dict([(k, mean(v)) for (k, v) in rmses])
+medians = Dict([(k, median(v[:rmses])) for (k, v) in analyzed_data])
+stds = Dict([(k, std(v[:rmses])) for (k, v) in analyzed_data])
+means = Dict([(k, mean(v[:rmses])) for (k, v) in analyzed_data])
 
 
 results = JSON.json(Dict(
