@@ -8,6 +8,8 @@
 // #include "data/actor_000000000500000.h"
 // #include "data/actor_000000001000000.h"
 // #include "data/actor_000000004000000.h"
+
+#include <backprop_tools/rl/environments/multirotor/multirotor.h>
 #include "data/actor.h"
 // #include "data/test_backprop_tools_nn_models_mlp_evaluation.h"
 
@@ -28,13 +30,15 @@ using TI = typename ACTOR_TYPE::SPEC::TI;
 using T = typename ACTOR_TYPE::SPEC::T;
 constexpr TI CONTROL_FREQUENCY_MULTIPLE = 5;
 static TI controller_tick = 0;
+constexpr TI ACTION_HISTORY_LENGTH = 32; //bpt::checkpoint::environment::ACTION_HISTORY_LENGTH
+static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == (18 + ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM));
 
 // State
 static ACTOR_TYPE::template Buffers<1, bpt::MatrixStaticTag> buffers;
 static bpt::MatrixStatic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
 static bpt::MatrixStatic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM>> output;
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
-static T action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH][ACTOR_TYPE::SPEC::OUTPUT_DIM];
+static T action_history[ACTION_HISTORY_LENGTH][ACTOR_TYPE::SPEC::OUTPUT_DIM];
 #endif
 
 
@@ -73,13 +77,17 @@ void backprop_tools_init(){
     bpt::malloc(device, input);
     bpt::malloc(device, output);
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
-    for(TI step_i = 0; step_i < bpt::checkpoint::environment::ACTION_HISTORY_LENGTH; step_i++){
+    for(TI step_i = 0; step_i < ACTION_HISTORY_LENGTH; step_i++){
         for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
             action_history[step_i][action_i] = 0;
         }
     }
 #endif
     controller_tick = 0;
+}
+
+char* backprop_tools_get_checkpoint_name(){
+    return (char*)bpt::checkpoint::meta::name;
 }
 
 float backprop_tools_test(float* output_mem){
@@ -123,8 +131,8 @@ void backprop_tools_control(float* state, float* actions){
     auto state_rotation_matrix_input = bpt::view(device, input, bpt::matrix::ViewSpec<1, 18>{}, 0, 0);
     observe_rotation_matrix(state_matrix, state_rotation_matrix_input);
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
-    auto action_history_observation = bpt::view(device, input, bpt::matrix::ViewSpec<1, bpt::checkpoint::environment::ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM>{}, 0, 18);
-    for(TI step_i = 0; step_i < bpt::checkpoint::environment::ACTION_HISTORY_LENGTH; step_i++){
+    auto action_history_observation = bpt::view(device, input, bpt::matrix::ViewSpec<1, ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM>{}, 0, 18);
+    for(TI step_i = 0; step_i < ACTION_HISTORY_LENGTH; step_i++){
         for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
             bpt::set(action_history_observation, 0, step_i * ACTOR_TYPE::SPEC::OUTPUT_DIM + action_i, action_history[step_i][action_i]);
         }
@@ -135,18 +143,18 @@ void backprop_tools_control(float* state, float* actions){
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
     int substep = controller_tick % CONTROL_FREQUENCY_MULTIPLE;
     if(substep == 0){
-        for(TI step_i = 0; step_i < bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1; step_i++){
+        for(TI step_i = 0; step_i < ACTION_HISTORY_LENGTH - 1; step_i++){
             for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
                 action_history[step_i][action_i] = action_history[step_i + 1][action_i];
             }
         }
     }
     for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
-        T value = action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1][action_i];
+        T value = action_history[ACTION_HISTORY_LENGTH - 1][action_i];
         value *= substep;
         value += bpt::get(output, 0, action_i);
         value /= substep + 1;
-        action_history[bpt::checkpoint::environment::ACTION_HISTORY_LENGTH - 1][action_i] = value;
+        action_history[ACTION_HISTORY_LENGTH - 1][action_i] = value;
     }
 #endif
     controller_tick++;

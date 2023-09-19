@@ -16,8 +16,6 @@
 // #define DEBUG_OUTPUT_INTERVAL 500
 #define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
-#define POS_DISTANCE_LIMIT 0.2f
-#define VEL_DISTANCE_LIMIT 1.0f
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*400)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
@@ -64,6 +62,9 @@ static float pos_error[3] = {0, 0, 0};
 static float relative_pos[3] = {0, 0, 0};
 static float origin[3] = {0, 0, 0};
 
+static float POS_DISTANCE_LIMIT;
+static float VEL_DISTANCE_LIMIT;
+
 enum Mode{
   POSITION = 0,
   WAYPOINT_NAVIGATION = 1,
@@ -107,6 +108,8 @@ static bool prev_set_motors;
 static motors_thrust_uncapped_t motorThrustUncapped;
 static motors_thrust_uncapped_t motorThrustBatCompUncapped;
 static motors_thrust_pwm_t motorPwm;
+
+static setpoint_t last_setpoint;
 
 static uint8_t hand_test = 0; // 0 = off; 1 = setpoint; 2 = angular velocity rejection; 3 = angular velocity rejection + orientation rejection;
 
@@ -204,6 +207,9 @@ void controllerOutOfTreeInit(void){
   relative_pos[2] = 0;
   log_set_motors = 0;
 
+  POS_DISTANCE_LIMIT = 0.5f;
+  VEL_DISTANCE_LIMIT = 2.0f;
+
   mode = POSITION;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
@@ -214,7 +220,8 @@ void controllerOutOfTreeInit(void){
 
   controllerPidInit();
   backprop_tools_init();
-  DEBUG_PRINT("BackpropTools controller: Init\n");
+
+  DEBUG_PRINT("BackpropTools controller init! Checkpoint: %s\n", backprop_tools_get_checkpoint_name());
 }
 
 bool controllerOutOfTreeTest(void)
@@ -263,6 +270,10 @@ static inline void every_1000ms(){
 #ifdef PRINT_RPY
   DEBUG_PRINT("rpy: %5.2f, %5.2f, %5.2f\n", attitude_rpy[0], attitude_rpy[1], attitude_rpy[2]);
 #endif
+
+  DEBUG_PRINT("Last setpoint: x disposition/mode %f/%d\n", last_setpoint.position.x, last_setpoint.mode.x);
+  DEBUG_PRINT("Last setpoint: y disposition/mode %f/%d\n", last_setpoint.position.y, last_setpoint.mode.y);
+  DEBUG_PRINT("Last setpoint: z disposition/mode %f/%d\n", last_setpoint.position.z, last_setpoint.mode.z);
 }
 
 static inline void every_10000ms(){
@@ -285,6 +296,11 @@ static inline void trigger_every(uint64_t controller_tick){
 
 void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorData_t *sensors, const state_t *state, const uint32_t tick) {
   uint64_t now = usecTimestamp();
+  if(setpoint->mode.x == modeVelocity && setpoint->mode.y == modeVelocity && setpoint->mode.z == modeAbs){
+    timestamp_last_control_packet_received = now;
+  }
+
+  last_setpoint = *setpoint;
   watchdogReset();
   control_invocation_interval *= CONTROL_INVOCATION_INTERVAL_ALPHA;
   control_invocation_interval += (1-CONTROL_INVOCATION_INTERVAL_ALPHA) * (now - timestamp_last_control_invocation);
@@ -381,9 +397,8 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   pos_error[1] = target_pos[1] - state->position.y;
   pos_error[2] = target_pos[2] - state->position.z;
 
-  trigger_every(tick);
+  trigger_every(controller_tick);
   prev_set_motors = set_motors;
-
 
   if (tick % CONTROL_INTERVAL_MS == 0){
     update_state(sensors, state);
@@ -436,7 +451,10 @@ PARAM_ADD(PARAM_FLOAT, ts, &trajectory_scale)
 PARAM_ADD(PARAM_FLOAT, wpt, &waypoint_navigation_dynamic_threshold)
 PARAM_ADD(PARAM_FLOAT, fei, &figure_eight_interval)
 PARAM_ADD(PARAM_FLOAT, fes, &figure_eight_scale)
+PARAM_ADD(PARAM_FLOAT, pdl, &POS_DISTANCE_LIMIT)
+PARAM_ADD(PARAM_FLOAT, vdl, &VEL_DISTANCE_LIMIT)
 PARAM_GROUP_STOP(bpt)
+
 
 // LOG_GROUP_START(bptp)
 // LOG_ADD(LOG_FLOAT, x, &state_input[0])
