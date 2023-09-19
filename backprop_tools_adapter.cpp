@@ -4,7 +4,7 @@
 #include <backprop_tools/operations/arm.h>
 #include <backprop_tools/nn/layers/dense/operations_arm/opt.h>
 #include <backprop_tools/nn/layers/dense/operations_arm/dsp.h>
-#include <backprop_tools/nn_models/mlp/operations_generic.h>
+#include <backprop_tools/nn_models/sequential/operations_generic.h>
 // #include "data/actor_000000000500000.h"
 // #include "data/actor_000000001000000.h"
 // #include "data/actor_000000004000000.h"
@@ -25,7 +25,7 @@ namespace bpt = backprop_tools;
 using DEV_SPEC = bpt::devices::DefaultARMSpecification;
 using DEVICE = bpt::devices::arm::OPT<DEV_SPEC>;
 DEVICE device;
-using ACTOR_TYPE = decltype(bpt::checkpoint::actor::mlp);
+using ACTOR_TYPE = bpt::checkpoint::actor::MODEL;
 using TI = typename ACTOR_TYPE::SPEC::TI;
 using T = typename ACTOR_TYPE::SPEC::T;
 constexpr TI CONTROL_FREQUENCY_MULTIPLE = 5;
@@ -34,7 +34,7 @@ constexpr TI ACTION_HISTORY_LENGTH = 32; //bpt::checkpoint::environment::ACTION_
 static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == (18 + ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM));
 
 // State
-static ACTOR_TYPE::template Buffers<1, bpt::MatrixStaticTag> buffers;
+static ACTOR_TYPE::template DoubleBuffer<1, bpt::MatrixStaticTag> buffers;
 static bpt::MatrixStatic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
 static bpt::MatrixStatic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM>> output;
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
@@ -104,7 +104,7 @@ float backprop_tools_test(float* output_mem){
 //     }
 //     return acc;
 // #elif defined(BACKPROP_TOOLS_CONTROL_STATE_ROTATION_MATRIX)
-    bpt::evaluate(device, bpt::checkpoint::actor::mlp, bpt::checkpoint::observation::container, output, buffers);
+    bpt::evaluate(device, bpt::checkpoint::actor::model, bpt::checkpoint::observation::container, output, buffers);
     float acc = 0;
     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
         acc += std::abs(bpt::get(output, 0, i) - bpt::get(bpt::checkpoint::action::container, 0, i));
@@ -139,7 +139,7 @@ void backprop_tools_control(float* state, float* actions){
     }
 #endif
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
-    bpt::evaluate(device, bpt::checkpoint::actor::mlp, input, output, buffers);
+    bpt::evaluate(device, bpt::checkpoint::actor::model, input, output, buffers);
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
     int substep = controller_tick % CONTROL_FREQUENCY_MULTIPLE;
     if(substep == 0){
