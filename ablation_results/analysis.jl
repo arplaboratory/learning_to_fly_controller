@@ -3,6 +3,7 @@ using DataFrames
 using Plots
 using Statistics
 using JSON
+using OrderedCollections
 
 
 
@@ -90,12 +91,37 @@ database = Dict(
         "ablation-tracking_error-20230809T23-00-28.csv",
         "ablation-tracking_error-20230809T23-02-57.csv",
         "ablation-tracking_error-20230809T23-14-14.csv",
+    ],
+    "Baseline 500000" => [
+        "ablation-tracking_error-20230809T23-21-41.csv",
+        "ablation-tracking_error-20230809T23-24-53.csv",
+        "ablation-tracking_error-20230809T23-27-47.csv",
+        "ablation-tracking_error-20230809T23-28-55.csv",
+        "ablation-tracking_error-20230809T23-31-21.csv",
+        "ablation-tracking_error-20230809T23-33-06.csv",
+        "ablation-tracking_error-20230809T23-35-54.csv",
+        "ablation-tracking_error-20230809T23-39-10.csv",
+        "ablation-tracking_error-20230809T23-40-37.csv",
+        "ablation-tracking_error-20230809T23-42-10.csv",
+    ],
+    "Curriculum Target 500000" => [
+        "ablation-tracking_error-20230809T23-47-38.csv",
+        "ablation-tracking_error-20230809T23-49-51.csv",
+        "ablation-tracking_error-20230809T23-51-22.csv",
+        "ablation-tracking_error-20230809T23-52-38.csv",
+        "ablation-tracking_error-20230809T23-54-05.csv",
+        "ablation-tracking_error-20230809T23-55-32.csv",
+        "ablation-tracking_error-20230809T23-57-57.csv",
+        "ablation-tracking_error-20230809T23-59-51.csv",
+        "ablation-tracking_error-20230810T00-02-34.csv",
+        "ablation-tracking_error-20230810T00-04-22.csv",
     ]
 )
 
 
+flight_time_limit = 40
 
-function analyze(flights_names; truncate_flight_times=40)
+function analyze(flights_names; truncate_flight_times=flight_time_limit)
 
     flight_data_raw = map(flights_names) do name
         if isnothing(name)
@@ -181,22 +207,40 @@ end
 
 analyzed_data = Dict([(k, analyze(v)) for (k, v) in database])
 
-mse_medians = Dict([(k, median(v[:rmses])) for (k, v) in analyzed_data])
-mse_stds = Dict([(k, std(v[:rmses])) for (k, v) in analyzed_data])
+flight_times_means = Dict([(k, mean(v[:flight_times])) for (k, v) in analyzed_data])
 mse_means = Dict([(k, mean(v[:rmses])) for (k, v) in analyzed_data])
+mse_medians = Dict([(k, median(v[:rmses])) for (k, v) in analyzed_data])
 mse_mins = Dict([(k, minimum(v[:rmses])) for (k, v) in analyzed_data])
 
-flight_times_medians = Dict([(k, median(v[:flight_times])) for (k, v) in analyzed_data])
-flight_times_means = Dict([(k, mean(v[:flight_times])) for (k, v) in analyzed_data])
+mse_stds = Dict([(k, std(v[:rmses])) for (k, v) in analyzed_data])
+# flight_times_medians = Dict([(k, median(v[:flight_times])) for (k, v) in analyzed_data])
+crashes = Dict([(k, "$(length(v[:flight_times]) - sum(v[:flight_times] .>= flight_time_limit))/$(length(v[:flight_times]))") for (k, v) in analyzed_data])
 # flight_times_table = Dict([(k, sort(v[:flight_times])) for (k, v) in analyzed_data])
 
-results = JSON.json(Dict(
-    "rmses" => rmses,
-    "medians" => medians,
-    "stds" => stds,
-    "means" => means
-))
+# results = JSON.json(Dict(
+#     "rmses" => rmses,
+#     "medians" => medians,
+#     "stds" => stds,
+#     "means" => means
+# ))
 
-open("ablation_results/results.json", "w") do f
-    write(f, results)
-end
+# open("ablation_results/results.json", "w") do f
+#     write(f, results)
+# end
+keys = [
+    "Baseline",
+    "Curriculum",
+    "Curriculum Target",
+    "Action History",
+    "Asymmetric Actor-Critic",
+    "Observation Noise",
+    "Disturbance",
+    "Baseline 500000",
+    "Curriculum Target 500000",
+]
+
+OrderedDict([(k, crashes[k]) for k in keys])
+OrderedDict([(k, flight_times_means[k]) for k in keys])
+OrderedDict([(k, mse_means[k]) for k in keys])
+OrderedDict([(k, mse_medians[k]) for k in keys])
+OrderedDict([(k, mse_mins[k]) for k in keys])
