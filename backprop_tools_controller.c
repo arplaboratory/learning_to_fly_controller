@@ -9,6 +9,7 @@
 #include "watchdog.h"
 #include "controller_pid.h"
 #include "controller_mellinger.h"
+#include "controller_indi.h"
 #include "power_distribution.h"
 #include "backprop_tools_adapter.h"
 #include "stabilizer_types.h"
@@ -221,6 +222,7 @@ void controllerOutOfTreeInit(void){
 
   controllerPidInit();
   controllerMellingerFirmwareInit();
+  controllerINDIInit();
   backprop_tools_init();
 
   DEBUG_PRINT("BackpropTools controller init! Checkpoint: %s\n", backprop_tools_get_checkpoint_name());
@@ -240,7 +242,7 @@ bool controllerOutOfTreeTest(void)
   if(absdiff > 0.2){
     return false;
   }
-  return controllerPidTest() && controllerMellingerFirmwareTest();
+  return controllerPidTest() && controllerMellingerFirmwareTest() && controllerINDITest();
 }
 
 static void batteryCompensation(const motors_thrust_uncapped_t* motorThrustUncapped, motors_thrust_uncapped_t* motorThrustBatCompUncapped)
@@ -320,6 +322,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     figure_eight_last_invocation = now;
     figure_eight_progress = 0;
     controllerMellingerFirmwareInit();
+    controllerINDIInit();
     DEBUG_PRINT("Controller activated\n");
     switch(mode){
       case POSITION:
@@ -459,12 +462,12 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       setpoint->mode.pitch = modeDisable;
       setpoint->mode.roll = modeDisable;
       setpoint->mode.quat = modeDisable;
-      setpoint->position.x = target_pos[0];
-      setpoint->position.y = target_pos[1];
-      setpoint->position.z = target_pos[2];
-      setpoint->velocity.x = target_vel[0];
-      setpoint->velocity.y = target_vel[1];
-      setpoint->velocity.z = target_vel[2];
+      setpoint->position.x = target_pos[0] + clip(target_pos[0] - state->position.x, -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
+      setpoint->position.y = target_pos[1] + clip(target_pos[1] - state->position.y, -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
+      setpoint->position.z = target_pos[2] + clip(target_pos[2] - state->position.z, -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
+      setpoint->velocity.x = target_vel[0] + clip(target_vel[0] - state->velocity.x, -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
+      setpoint->velocity.y = target_vel[1] + clip(target_vel[1] - state->velocity.y, -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
+      setpoint->velocity.z = target_vel[2] + clip(target_vel[2] - state->velocity.z, -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
       setpoint->acceleration.x = 0;
       setpoint->acceleration.y = 0;
       setpoint->acceleration.z = 0.1;
@@ -485,7 +488,12 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
         controllerPid(control, setpoint, sensors, state, tick);
       }
       else{
-        controllerMellingerFirmware(control, setpoint, sensors, state, tick);
+        if(use_orig_controller == 2){
+          controllerMellingerFirmware(control, setpoint, sensors, state, tick);
+        }
+        else{
+          controllerINDI(control, setpoint, sensors, state, tick);
+        }
       }
       powerDistribution(control, &motorThrustUncapped);
       batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
