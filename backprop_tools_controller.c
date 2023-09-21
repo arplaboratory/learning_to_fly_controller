@@ -383,7 +383,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
         float t = (now - timestamp_controller_activation) / 1000000.0f;
         float dt = (now - figure_eight_last_invocation) / 1000000.0f;
         float speed = figure_eight_interval;
-        float warmup_time = 4; 
+        float warmup_time = 0; 
         if(t < warmup_time){
           speed = (warmup_time - t)/warmup_time * figure_eight_interval * 10 + figure_eight_interval;
         }
