@@ -8,8 +8,12 @@
 #include "motors.h"
 #include "watchdog.h"
 #include "controller_pid.h"
+// #include "controller_mellinger.h"
 #include "power_distribution.h"
 #include "backprop_tools_adapter.h"
+#include "stabilizer_types.h"
+#include "pm.h"
+#include "task.h"
 
 // #include "dynamics_encoder.h"
 
@@ -112,13 +116,9 @@ static motors_thrust_pwm_t motorPwm;
 static setpoint_t last_setpoint;
 
 static uint8_t hand_test = 0; // 0 = off; 1 = setpoint; 2 = angular velocity rejection; 3 = angular velocity rejection + orientation rejection;
+static uint8_t use_orig_controller = 0;
 
 
-
-void controller_bpt_control_packet_received(){
-  uint64_t now = usecTimestamp();
-  timestamp_last_control_packet_received = now;
-}
 
 static inline float clip(float v, float low, float high){
   if(v < low){
@@ -211,6 +211,7 @@ void controllerOutOfTreeInit(void){
   VEL_DISTANCE_LIMIT = 2.0f;
 
   mode = POSITION;
+  use_orig_controller = 0;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
 
@@ -219,6 +220,7 @@ void controllerOutOfTreeInit(void){
   figure_eight_progress = 0;
 
   controllerPidInit();
+  // controllerMellingerFirmwareInit();
   backprop_tools_init();
 
   DEBUG_PRINT("BackpropTools controller init! Checkpoint: %s\n", backprop_tools_get_checkpoint_name());
@@ -227,7 +229,7 @@ void controllerOutOfTreeInit(void){
 bool controllerOutOfTreeTest(void)
 {
   float output[4];
-  float absdiff = backprop_tools_test(output);
+  float absdiff = 0; //backprop_tools_test(output);
   if(absdiff < 0){
     absdiff = -absdiff;
   }
@@ -238,7 +240,7 @@ bool controllerOutOfTreeTest(void)
   if(absdiff > 0.2){
     return false;
   }
-  return controllerPidTest();
+  return controllerPidTest();// && controllerMellingerFirmwareTest();
 }
 
 static void batteryCompensation(const motors_thrust_uncapped_t* motorThrustUncapped, motors_thrust_uncapped_t* motorThrustBatCompUncapped)
@@ -297,7 +299,7 @@ static inline void trigger_every(uint64_t controller_tick){
 void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorData_t *sensors, const state_t *state, const uint32_t tick) {
   uint64_t now = usecTimestamp();
   if(setpoint->mode.x == modeVelocity && setpoint->mode.y == modeVelocity && setpoint->mode.z == modeAbs){
-    timestamp_last_control_packet_received = now;
+    // timestamp_last_control_packet_received = now;
   }
 
   last_setpoint = *setpoint;
@@ -335,6 +337,9 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   }
   if(prev_set_motors && !set_motors){
     DEBUG_PRINT("Controller deactivated\n");
+    for(uint8_t i=0; i<4; i++){
+      motorsSetRatio(motors[i], 0);
+    }
   }
   relative_pos[0] = state->position.x - origin[0];
   relative_pos[1] = state->position.y - origin[1];
@@ -404,7 +409,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     update_state(sensors, state);
     {
       int64_t before = usecTimestamp();
-      backprop_tools_control(state_input, action_output);
+      // backprop_tools_control(state_input, action_output);
       int64_t after = usecTimestamp();
       if (tick % (CONTROL_INTERVAL_MS * 10000) == 0){
         DEBUG_PRINT("backprop_tools_control took %lldus\n", after - before);
@@ -418,7 +423,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       float des_rpm = (MAX_RPM - MIN_RPM) * a_pp + MIN_RPM;
       float des_percentage = des_rpm / MAX_RPM;
       motor_cmd[i] = des_percentage * UINT16_MAX;
-      if(set_motors){
+      if(set_motors && use_orig_controller == 0){
         motorsSetRatio(motors[i], clip((float)motor_cmd[i] / motor_cmd_divider, 0, UINT16_MAX));
       }
     }
@@ -431,10 +436,33 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   }
   if(!set_motors){
     controllerPid(control, setpoint, sensors, state, tick);
-    powerDistribution(&control, &motorThrustUncapped);
+    // controllerMellinger(control, setpoint, sensors, state, tick);
+    powerDistribution(control, &motorThrustUncapped);
     batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
     powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);
     setMotorRatios(&motorPwm);
+  }
+  else{
+    if(use_orig_controller == 1){
+      setpoint->mode.x = modeAbs;
+      setpoint->mode.y = modeAbs;
+      setpoint->mode.z = modeAbs;
+      setpoint->mode.yaw = modeDisable;
+      setpoint->mode.pitch = modeDisable;
+      setpoint->mode.roll = modeDisable;
+      setpoint->mode.quat = modeDisable;
+      setpoint->position.x = target_pos[0];
+      setpoint->position.y = target_pos[1];
+      setpoint->position.z = target_pos[2];
+      setpoint->attitude.yaw = 0;
+      setpoint->timestamp = xTaskGetTickCount();
+      controllerPid(control, setpoint, sensors, state, tick);
+      // controllerMellinger(control, setpoint, sensors, state, tick);
+      powerDistribution(control, &motorThrustUncapped);
+      batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
+      powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);
+      setMotorRatios(&motorPwm);
+    }
   }
   controller_tick++;
 }
@@ -453,6 +481,7 @@ PARAM_ADD(PARAM_FLOAT, fei, &figure_eight_interval)
 PARAM_ADD(PARAM_FLOAT, fes, &figure_eight_scale)
 PARAM_ADD(PARAM_FLOAT, pdl, &POS_DISTANCE_LIMIT)
 PARAM_ADD(PARAM_FLOAT, vdl, &VEL_DISTANCE_LIMIT)
+PARAM_ADD(PARAM_UINT8, orig, &use_orig_controller)
 PARAM_GROUP_STOP(bpt)
 
 
