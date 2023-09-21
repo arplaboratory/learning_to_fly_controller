@@ -8,7 +8,7 @@
 #include "motors.h"
 #include "watchdog.h"
 #include "controller_pid.h"
-// #include "controller_mellinger.h"
+#include "controller_mellinger.h"
 #include "power_distribution.h"
 #include "backprop_tools_adapter.h"
 #include "stabilizer_types.h"
@@ -220,7 +220,7 @@ void controllerOutOfTreeInit(void){
   figure_eight_progress = 0;
 
   controllerPidInit();
-  // controllerMellingerFirmwareInit();
+  controllerMellingerFirmwareInit();
   backprop_tools_init();
 
   DEBUG_PRINT("BackpropTools controller init! Checkpoint: %s\n", backprop_tools_get_checkpoint_name());
@@ -229,7 +229,7 @@ void controllerOutOfTreeInit(void){
 bool controllerOutOfTreeTest(void)
 {
   float output[4];
-  float absdiff = 0; //backprop_tools_test(output);
+  float absdiff = backprop_tools_test(output);
   if(absdiff < 0){
     absdiff = -absdiff;
   }
@@ -240,7 +240,7 @@ bool controllerOutOfTreeTest(void)
   if(absdiff > 0.2){
     return false;
   }
-  return controllerPidTest();// && controllerMellingerFirmwareTest();
+  return controllerPidTest() && controllerMellingerFirmwareTest();
 }
 
 static void batteryCompensation(const motors_thrust_uncapped_t* motorThrustUncapped, motors_thrust_uncapped_t* motorThrustBatCompUncapped)
@@ -319,6 +319,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     origin[2] = state->position.z + target_height;
     figure_eight_last_invocation = now;
     figure_eight_progress = 0;
+    controllerMellingerFirmwareInit();
     DEBUG_PRINT("Controller activated\n");
     switch(mode){
       case POSITION:
@@ -409,7 +410,15 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     update_state(sensors, state);
     {
       int64_t before = usecTimestamp();
-      // backprop_tools_control(state_input, action_output);
+      if(use_orig_controller == 0){
+        backprop_tools_control(state_input, action_output);
+      }
+      else{
+        action_output[0] = -0.8;
+        action_output[1] = -0.8;
+        action_output[2] = -0.8;
+        action_output[3] = -0.8;
+      }
       int64_t after = usecTimestamp();
       if (tick % (CONTROL_INTERVAL_MS * 10000) == 0){
         DEBUG_PRINT("backprop_tools_control took %lldus\n", after - before);
@@ -436,28 +445,48 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   }
   if(!set_motors){
     controllerPid(control, setpoint, sensors, state, tick);
-    // controllerMellinger(control, setpoint, sensors, state, tick);
     powerDistribution(control, &motorThrustUncapped);
     batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
     powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);
     setMotorRatios(&motorPwm);
   }
   else{
-    if(use_orig_controller == 1){
+    if(use_orig_controller >= 1){
       setpoint->mode.x = modeAbs;
       setpoint->mode.y = modeAbs;
       setpoint->mode.z = modeAbs;
-      setpoint->mode.yaw = modeDisable;
+      setpoint->mode.yaw = modeAbs;
       setpoint->mode.pitch = modeDisable;
       setpoint->mode.roll = modeDisable;
       setpoint->mode.quat = modeDisable;
       setpoint->position.x = target_pos[0];
       setpoint->position.y = target_pos[1];
       setpoint->position.z = target_pos[2];
+      setpoint->velocity.x = target_vel[0];
+      setpoint->velocity.y = target_vel[1];
+      setpoint->velocity.z = target_vel[2];
+      setpoint->acceleration.x = 0;
+      setpoint->acceleration.y = 0;
+      setpoint->acceleration.z = 0.1;
+
       setpoint->attitude.yaw = 0;
+      setpoint->attitude.pitch = 0;
+      setpoint->attitude.roll = 0;
+      setpoint->attitudeQuaternion.w = 1;
+      setpoint->attitudeQuaternion.x = 0;
+      setpoint->attitudeQuaternion.y = 0;
+      setpoint->attitudeQuaternion.z = 0;
+      setpoint->attitudeRate.yaw = 0;
+      setpoint->attitudeRate.pitch = 0;
+      setpoint->attitudeRate.roll = 0;
+
       setpoint->timestamp = xTaskGetTickCount();
-      controllerPid(control, setpoint, sensors, state, tick);
-      // controllerMellinger(control, setpoint, sensors, state, tick);
+      if(use_orig_controller == 1){
+        controllerPid(control, setpoint, sensors, state, tick);
+      }
+      else{
+        controllerMellingerFirmware(control, setpoint, sensors, state, tick);
+      }
       powerDistribution(control, &motorThrustUncapped);
       batteryCompensation(&motorThrustUncapped, &motorThrustBatCompUncapped);
       powerDistributionCap(&motorThrustBatCompUncapped, &motorPwm);
