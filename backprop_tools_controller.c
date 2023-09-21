@@ -69,6 +69,8 @@ static float origin[3] = {0, 0, 0};
 
 static float POS_DISTANCE_LIMIT;
 static float VEL_DISTANCE_LIMIT;
+static float POS_DISTANCE_LIMIT_MELLINGER;
+static float VEL_DISTANCE_LIMIT_MELLINGER;
 
 enum Mode{
   POSITION = 0,
@@ -210,6 +212,8 @@ void controllerOutOfTreeInit(void){
 
   POS_DISTANCE_LIMIT = 0.5f;
   VEL_DISTANCE_LIMIT = 2.0f;
+  POS_DISTANCE_LIMIT_MELLINGER = 0.2f;
+  VEL_DISTANCE_LIMIT_MELLINGER = 1.0f;
 
   mode = POSITION;
   use_orig_controller = 0;
@@ -462,15 +466,15 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       setpoint->mode.pitch = modeDisable;
       setpoint->mode.roll = modeDisable;
       setpoint->mode.quat = modeDisable;
-      setpoint->position.x = target_pos[0] + clip(target_pos[0] - state->position.x, -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
-      setpoint->position.y = target_pos[1] + clip(target_pos[1] - state->position.y, -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
-      setpoint->position.z = target_pos[2] + clip(target_pos[2] - state->position.z, -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
-      setpoint->velocity.x = target_vel[0] + clip(target_vel[0] - state->velocity.x, -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
-      setpoint->velocity.y = target_vel[1] + clip(target_vel[1] - state->velocity.y, -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
-      setpoint->velocity.z = target_vel[2] + clip(target_vel[2] - state->velocity.z, -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
+      setpoint->position.x = state->position.x + clip(target_pos[0] - state->position.x, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
+      setpoint->position.y = state->position.y + clip(target_pos[1] - state->position.y, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
+      setpoint->position.z = state->position.z + clip(target_pos[2] - state->position.z, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
+      setpoint->velocity.x = state->velocity.x + clip(target_vel[0] - state->velocity.x, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
+      setpoint->velocity.y = state->velocity.y + clip(target_vel[1] - state->velocity.y, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
+      setpoint->velocity.z = state->velocity.z + clip(target_vel[2] - state->velocity.z, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
       setpoint->acceleration.x = 0;
       setpoint->acceleration.y = 0;
-      setpoint->acceleration.z = 0.1;
+      setpoint->acceleration.z = 0;
 
       setpoint->attitude.yaw = 0;
       setpoint->attitude.pitch = 0;
@@ -518,6 +522,8 @@ PARAM_ADD(PARAM_FLOAT, fei, &figure_eight_interval)
 PARAM_ADD(PARAM_FLOAT, fes, &figure_eight_scale)
 PARAM_ADD(PARAM_FLOAT, pdl, &POS_DISTANCE_LIMIT)
 PARAM_ADD(PARAM_FLOAT, vdl, &VEL_DISTANCE_LIMIT)
+PARAM_ADD(PARAM_FLOAT, pdlm, &POS_DISTANCE_LIMIT_MELLINGER)
+PARAM_ADD(PARAM_FLOAT, vdlm, &VEL_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_UINT8, orig, &use_orig_controller)
 PARAM_GROUP_STOP(bpt)
 
