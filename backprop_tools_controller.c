@@ -10,6 +10,7 @@
 #include "controller_pid.h"
 #include "controller_mellinger.h"
 #include "controller_indi.h"
+#include "controller_brescianini.h"
 #include "power_distribution.h"
 #include "backprop_tools_adapter.h"
 #include "stabilizer_types.h"
@@ -71,6 +72,8 @@ static float POS_DISTANCE_LIMIT;
 static float VEL_DISTANCE_LIMIT;
 static float POS_DISTANCE_LIMIT_MELLINGER;
 static float VEL_DISTANCE_LIMIT_MELLINGER;
+static float POS_DISTANCE_LIMIT_BRESCIANI;
+static float VEL_DISTANCE_LIMIT_BRESCIANI;
 
 enum Mode{
   POSITION = 0,
@@ -214,6 +217,8 @@ void controllerOutOfTreeInit(void){
   VEL_DISTANCE_LIMIT = 2.0f;
   POS_DISTANCE_LIMIT_MELLINGER = 0.2f;
   VEL_DISTANCE_LIMIT_MELLINGER = 1.0f;
+  POS_DISTANCE_LIMIT_BRESCIANI = 0.2f;
+  VEL_DISTANCE_LIMIT_BRESCIANI = 1.0f;
 
   mode = POSITION;
   use_orig_controller = 0;
@@ -227,6 +232,7 @@ void controllerOutOfTreeInit(void){
   controllerPidInit();
   controllerMellingerFirmwareInit();
   controllerINDIInit();
+  controllerBrescianiniInit();
   backprop_tools_init();
 
   DEBUG_PRINT("BackpropTools controller init! Checkpoint: %s\n", backprop_tools_get_checkpoint_name());
@@ -246,7 +252,7 @@ bool controllerOutOfTreeTest(void)
   if(absdiff > 0.2){
     return false;
   }
-  return controllerPidTest() && controllerMellingerFirmwareTest() && controllerINDITest();
+  return controllerPidTest() && controllerMellingerFirmwareTest() && controllerINDITest() && controllerBrescianiniTest();
 }
 
 static void batteryCompensation(const motors_thrust_uncapped_t* motorThrustUncapped, motors_thrust_uncapped_t* motorThrustBatCompUncapped)
@@ -466,12 +472,12 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       setpoint->mode.pitch = modeDisable;
       setpoint->mode.roll = modeDisable;
       setpoint->mode.quat = modeDisable;
-      setpoint->position.x = state->position.x + clip(target_pos[0] - state->position.x, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
-      setpoint->position.y = state->position.y + clip(target_pos[1] - state->position.y, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
-      setpoint->position.z = state->position.z + clip(target_pos[2] - state->position.z, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
-      setpoint->velocity.x = state->velocity.x + clip(target_vel[0] - state->velocity.x, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
-      setpoint->velocity.y = state->velocity.y + clip(target_vel[1] - state->velocity.y, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
-      setpoint->velocity.z = state->velocity.z + clip(target_vel[2] - state->velocity.z, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
+      setpoint->position.x = target_pos[0];
+      setpoint->position.y = target_pos[1];
+      setpoint->position.z = target_pos[2];
+      setpoint->velocity.x = target_vel[0];
+      setpoint->velocity.y = target_vel[1];
+      setpoint->velocity.z = target_vel[2];
       setpoint->acceleration.x = 0;
       setpoint->acceleration.y = 0;
       setpoint->acceleration.z = 0;
@@ -493,10 +499,27 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       }
       else{
         if(use_orig_controller == 2){
+          setpoint->position.x = state->position.x + clip(target_pos[0] - state->position.x, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
+          setpoint->position.y = state->position.y + clip(target_pos[1] - state->position.y, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
+          setpoint->position.z = state->position.z + clip(target_pos[2] - state->position.z, -POS_DISTANCE_LIMIT_MELLINGER, POS_DISTANCE_LIMIT_MELLINGER);
+          setpoint->velocity.x = state->velocity.x + clip(target_vel[0] - state->velocity.x, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
+          setpoint->velocity.y = state->velocity.y + clip(target_vel[1] - state->velocity.y, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
+          setpoint->velocity.z = state->velocity.z + clip(target_vel[2] - state->velocity.z, -VEL_DISTANCE_LIMIT_MELLINGER, VEL_DISTANCE_LIMIT_MELLINGER);
           controllerMellingerFirmware(control, setpoint, sensors, state, tick);
         }
         else{
-          controllerINDI(control, setpoint, sensors, state, tick);
+          if(use_orig_controller == 3){
+            controllerINDI(control, setpoint, sensors, state, tick);
+          }
+          else{
+            setpoint->position.x = state->position.x + clip(target_pos[0] - state->position.x, -POS_DISTANCE_LIMIT_BRESCIANI, POS_DISTANCE_LIMIT_BRESCIANI);
+            setpoint->position.y = state->position.y + clip(target_pos[1] - state->position.y, -POS_DISTANCE_LIMIT_BRESCIANI, POS_DISTANCE_LIMIT_BRESCIANI);
+            setpoint->position.z = state->position.z + clip(target_pos[2] - state->position.z, -POS_DISTANCE_LIMIT_BRESCIANI, POS_DISTANCE_LIMIT_BRESCIANI);
+            setpoint->velocity.x = state->velocity.x + clip(target_vel[0] - state->velocity.x, -VEL_DISTANCE_LIMIT_BRESCIANI, VEL_DISTANCE_LIMIT_BRESCIANI);
+            setpoint->velocity.y = state->velocity.y + clip(target_vel[1] - state->velocity.y, -VEL_DISTANCE_LIMIT_BRESCIANI, VEL_DISTANCE_LIMIT_BRESCIANI);
+            setpoint->velocity.z = state->velocity.z + clip(target_vel[2] - state->velocity.z, -VEL_DISTANCE_LIMIT_BRESCIANI, VEL_DISTANCE_LIMIT_BRESCIANI);
+            controllerBrescianini(control, setpoint, sensors, state, tick);
+          }
         }
       }
       powerDistribution(control, &motorThrustUncapped);
