@@ -74,6 +74,7 @@ static float POS_DISTANCE_LIMIT_MELLINGER;
 static float VEL_DISTANCE_LIMIT_MELLINGER;
 static float POS_DISTANCE_LIMIT_BRESCIANI;
 static float VEL_DISTANCE_LIMIT_BRESCIANI;
+static uint8_t MELLINGER_ENABLE_INTEGRATORS;
 
 enum Mode{
   POSITION = 0,
@@ -219,6 +220,7 @@ void controllerOutOfTreeInit(void){
   VEL_DISTANCE_LIMIT_MELLINGER = 1.0f;
   POS_DISTANCE_LIMIT_BRESCIANI = 0.2f;
   VEL_DISTANCE_LIMIT_BRESCIANI = 1.0f;
+  MELLINGER_ENABLE_INTEGRATORS = 1;
 
   mode = POSITION;
   use_orig_controller = 0;
@@ -333,6 +335,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     figure_eight_progress = 0;
     controllerMellingerFirmwareInit();
     controllerINDIInit();
+    controllerMellingerFirmwareEnableIntegrators(MELLINGER_ENABLE_INTEGRATORS == 1);
     DEBUG_PRINT("Controller activated\n");
     switch(mode){
       case POSITION:
@@ -548,6 +551,7 @@ PARAM_ADD(PARAM_FLOAT, vdl, &VEL_DISTANCE_LIMIT)
 PARAM_ADD(PARAM_FLOAT, pdlm, &POS_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_FLOAT, vdlm, &VEL_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_UINT8, orig, &use_orig_controller)
+PARAM_ADD(PARAM_UINT8, mei, &MELLINGER_ENABLE_INTEGRATORS)
 PARAM_GROUP_STOP(bpt)
 
 
