@@ -82,7 +82,7 @@ enum Mode{
   WAYPOINT_NAVIGATION_DYNAMIC = 2,
   FIGURE_EIGHT = 3
 };
-static uint8_t mode = POSITION;
+static uint8_t mode;
 static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
   {0.0, 0.0, 0.0},
   {1.0, 0.0, 0.0},
@@ -97,7 +97,7 @@ static float figure_eight_scale = 1.0;
 static float trajectory_scale = 0.5;
 static float figure_eight_progress = 0;
 static uint64_t figure_eight_last_invocation;
-static float target_height = 0.3;
+static float target_height;
 static uint64_t timestamp_last_waypoint, timestamp_controller_activation;
 static uint8_t log_set_motors = 0;
 
@@ -195,7 +195,7 @@ void learned_controller_packet_received(){
 void controllerOutOfTreeInit(void){
   controller_state = STATE_RESET;
   controller_tick = 0;
-  motor_cmd_divider = 1.2;
+  motor_cmd_divider = 1.0;
   motor_cmd[0] = 0;
   motor_cmd[1] = 0;
   motor_cmd[2] = 0;
@@ -222,7 +222,10 @@ void controllerOutOfTreeInit(void){
   VEL_DISTANCE_LIMIT_BRESCIANI = 1.0f;
   MELLINGER_ENABLE_INTEGRATORS = 1;
 
-  mode = POSITION;
+  target_height = 0.0;
+
+  // mode = POSITION;
+  mode = FIGURE_EIGHT;
   use_orig_controller = 0;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
@@ -406,10 +409,10 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
         }
         figure_eight_progress += dt * 1.0/speed;
         float progress = figure_eight_progress;
-        target_pos[1] = origin[1] + cosf(progress*2*M_PI + M_PI / 2) * figure_eight_scale;
-        target_vel[1] = -sinf(progress*2*M_PI + M_PI / 2) * figure_eight_scale * 2 * M_PI / speed;
-        target_pos[0] = origin[0] + sinf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale;
-        target_vel[0] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale * 4 * M_PI / speed;
+        target_pos[0] = origin[0] + cosf(progress*2*M_PI + M_PI / 2) * figure_eight_scale;
+        target_vel[0] = -sinf(progress*2*M_PI + M_PI / 2) * figure_eight_scale * 2 * M_PI / speed;
+        target_pos[1] = origin[1] + sinf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale;
+        target_vel[1] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale * 4 * M_PI / speed;
         target_pos[2] = origin[2];
         figure_eight_last_invocation = now;
       }
@@ -587,12 +590,12 @@ PARAM_GROUP_STOP(bpt)
 // LOG_GROUP_STOP(bptt)
 
 
-// LOG_GROUP_START(bptm)
-// LOG_ADD(LOG_UINT16, m1, &motor_cmd[0])
-// LOG_ADD(LOG_UINT16, m2, &motor_cmd[1])
-// LOG_ADD(LOG_UINT16, m3, &motor_cmd[2])
-// LOG_ADD(LOG_UINT16, m4, &motor_cmd[3])
-// LOG_GROUP_STOP(bptm)
+LOG_GROUP_START(bptm)
+LOG_ADD(LOG_UINT16, m1, &motor_cmd[0])
+LOG_ADD(LOG_UINT16, m2, &motor_cmd[1])
+LOG_ADD(LOG_UINT16, m3, &motor_cmd[2])
+LOG_ADD(LOG_UINT16, m4, &motor_cmd[3])
+LOG_GROUP_STOP(bptm)
 
 LOG_GROUP_START(bptrp)
 LOG_ADD(LOG_FLOAT, x, &relative_pos[0])

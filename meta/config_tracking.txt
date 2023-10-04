@@ -1,0 +1,14 @@
+1     # version
+1024   # buffer size in bytes
+log   # file name
+0     # enable on startup (0/1)
+on:fixedFrequency
+1000     # frequency
+1     # mode (0: disabled, 1: synchronous stabilizer, 2: asynchronous)
+bptrp.sm
+bptrp.x
+bptrp.y
+bptrp.z
+bptte.x
+bptte.y
+bptte.z
