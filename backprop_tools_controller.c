@@ -93,6 +93,7 @@ static float trajectory[WAYPOINT_NAVIGATION_POINTS][3] = {
 static uint8_t waypoint_navigation_dynamic_current_waypoint = 0;
 static float waypoint_navigation_dynamic_threshold = 0.1;
 static float figure_eight_interval = 5.5;
+static float figure_eight_warmup_time; 
 static float figure_eight_scale = 1.0;
 static float trajectory_scale = 0.5;
 static float figure_eight_progress = 0;
@@ -233,6 +234,7 @@ void controllerOutOfTreeInit(void){
   figure_eight_interval = 5.5;
   figure_eight_scale = 1;
   figure_eight_progress = 0;
+  figure_eight_warmup_time = 2;
 
   controllerPidInit();
   controllerMellingerFirmwareInit();
@@ -402,17 +404,17 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       {
         float t = (now - timestamp_controller_activation) / 1000000.0f;
         float dt = (now - figure_eight_last_invocation) / 1000000.0f;
-        float speed = figure_eight_interval;
-        float warmup_time = 0; 
-        if(t < warmup_time){
-          speed = (warmup_time - t)/warmup_time * figure_eight_interval * 10 + figure_eight_interval;
+        float target_speed = 1/figure_eight_interval;
+        float speed = target_speed;
+        if(t < figure_eight_warmup_time){
+          speed = target_speed * t/figure_eight_warmup_time;
         }
-        figure_eight_progress += dt * 1.0/speed;
+        figure_eight_progress += dt * speed;
         float progress = figure_eight_progress;
         target_pos[0] = origin[0] + cosf(progress*2*M_PI + M_PI / 2) * figure_eight_scale;
-        target_vel[0] = -sinf(progress*2*M_PI + M_PI / 2) * figure_eight_scale * 2 * M_PI / speed;
+        target_vel[0] = -sinf(progress*2*M_PI + M_PI / 2) * figure_eight_scale * 2 * M_PI * speed;
         target_pos[1] = origin[1] + sinf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale;
-        target_vel[1] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale * 4 * M_PI / speed;
+        target_vel[1] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale * 4 * M_PI * speed;
         target_pos[2] = origin[2];
         figure_eight_last_invocation = now;
       }
@@ -547,6 +549,7 @@ PARAM_ADD(PARAM_UINT8, ht, &hand_test)
 PARAM_ADD(PARAM_UINT8, wn, &mode)
 PARAM_ADD(PARAM_FLOAT, ts, &trajectory_scale)
 PARAM_ADD(PARAM_FLOAT, wpt, &waypoint_navigation_dynamic_threshold)
+PARAM_ADD(PARAM_FLOAT, fewt, &figure_eight_warmup_time)
 PARAM_ADD(PARAM_FLOAT, fei, &figure_eight_interval)
 PARAM_ADD(PARAM_FLOAT, fes, &figure_eight_scale)
 PARAM_ADD(PARAM_FLOAT, pdl, &POS_DISTANCE_LIMIT)

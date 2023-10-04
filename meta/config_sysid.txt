@@ -1,19 +1,16 @@
 1     # version
-1024   # buffer size in bytes
+2096  # buffer size in bytes
 log   # file name
 0     # enable on startup (0/1)
 on:fixedFrequency
-1000     # frequency
+500     # frequency
 1     # mode (0: disabled, 1: synchronous stabilizer, 2: asynchronous)
 acc.x
 acc.y
 acc.z
 gyro.x
-gyro.xRaw
 gyro.y
-gyro.yRaw
 gyro.z
-gyro.zRaw
 stateEstimate.qw
 stateEstimate.qx
 stateEstimate.qy
@@ -21,12 +18,8 @@ stateEstimate.qz
 stateEstimate.vx
 stateEstimate.vy
 stateEstimate.vz
-stateEstimate.x
-stateEstimate.y
-stateEstimate.z
 bptm.m1
 bptm.m2
 bptm.m3
 bptm.m4
 bptrp.sm
-pm.vbatMV
