@@ -215,8 +215,8 @@ void controllerOutOfTreeInit(void){
   relative_pos[2] = 0;
   log_set_motors = 0;
 
-  POS_DISTANCE_LIMIT = 0.2f;
-  VEL_DISTANCE_LIMIT = 1.0f;
+  POS_DISTANCE_LIMIT = 0.6f;
+  VEL_DISTANCE_LIMIT = 2.0f;
   POS_DISTANCE_LIMIT_MELLINGER = 0.2f;
   VEL_DISTANCE_LIMIT_MELLINGER = 1.0f;
   POS_DISTANCE_LIMIT_BRESCIANI = 0.2f;

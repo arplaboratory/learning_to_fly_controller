@@ -31,7 +31,11 @@ using T = typename ACTOR_TYPE::SPEC::T;
 constexpr TI CONTROL_FREQUENCY_MULTIPLE = 5;
 static TI controller_tick = 0;
 constexpr TI ACTION_HISTORY_LENGTH = 32; //bpt::checkpoint::environment::ACTION_HISTORY_LENGTH
+#ifdef BACKPROP_TOOLS_ACTION_HISTORY
 static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == (18 + ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM));
+#else
+static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == 18);
+#endif
 
 // State
 static ACTOR_TYPE::template DoubleBuffer<1, bpt::MatrixStaticTag> buffers;
@@ -76,6 +80,7 @@ void backprop_tools_init(){
     bpt::malloc(device, buffers);
     bpt::malloc(device, input);
     bpt::malloc(device, output);
+    // todo: create backprop_tools_reset to reset the action history on each activation
 #ifdef BACKPROP_TOOLS_ACTION_HISTORY
     for(TI step_i = 0; step_i < ACTION_HISTORY_LENGTH; step_i++){
         for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){

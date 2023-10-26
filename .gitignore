@@ -6,4 +6,5 @@ venv
 ablation_data
 *.tar.gz
 
+ablation_checkpoints
 ablation_data*

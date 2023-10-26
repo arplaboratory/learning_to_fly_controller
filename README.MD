@@ -96,12 +96,21 @@ Run the ros to websocket bridge
 ```
 roslaunch rosbridge_server rosbridge_websocket.launch
 ```
+
+Now combined in:
+
+```
+. ~/arpl_workspace/devel/setup.bash && roslaunch mocap_vicon vicon.launch
+```
+
 Run the modified `crazyflie-clients-python` (this is forwarding the position from vicon to the crazyflie)
 Modify the topic in the main.py to reflect the vicon object that corresponds to the crazyflie.
 ```
-cfclient
+VICON_POSE_TOPIC="/vicon/crazyflie/pose" python3 -m cfclient.gui
 ```
 Set the `stabilizer.estimator` parameter to EKF so that the external position reference is incorporated into the estimate (this is set by default in the modified fw now)
+
+
 
 
 Test the angular rate response using the ht (hand test) parameter in the firmware (check the hand_test var in the controller code to see the options)
