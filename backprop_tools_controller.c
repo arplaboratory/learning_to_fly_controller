@@ -68,8 +68,10 @@ static float pos_error[3] = {0, 0, 0};
 static float relative_pos[3] = {0, 0, 0};
 static float origin[3] = {0, 0, 0};
 
-static float POS_DISTANCE_LIMIT;
-static float VEL_DISTANCE_LIMIT;
+static float POS_DISTANCE_LIMIT_POSITION;
+static float VEL_DISTANCE_LIMIT_POSITION;
+static float POS_DISTANCE_LIMIT_FIGURE_EIGHT;
+static float VEL_DISTANCE_LIMIT_FIGURE_EIGHT;
 static float POS_DISTANCE_LIMIT_MELLINGER;
 static float VEL_DISTANCE_LIMIT_MELLINGER;
 static float POS_DISTANCE_LIMIT_BRESCIANI;
@@ -98,7 +100,7 @@ static float figure_eight_scale = 1.0;
 static float trajectory_scale = 0.5;
 static float figure_eight_progress = 0;
 static uint64_t figure_eight_last_invocation;
-static float target_height;
+static float target_height, target_height_figure_eight;
 static uint64_t timestamp_last_waypoint, timestamp_controller_activation;
 static uint8_t log_set_motors = 0;
 
@@ -144,6 +146,7 @@ static inline float clip(float v, float low, float high){
 
 static inline void update_state(const sensorData_t* sensors, const state_t* state){
   if(hand_test == 0){
+    float POS_DISTANCE_LIMIT = mode == FIGURE_EIGHT ? POS_DISTANCE_LIMIT_FIGURE_EIGHT : POS_DISTANCE_LIMIT_POSITION;
     state_input[ 0] = clip(state->position.x - target_pos[0], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
     state_input[ 1] = clip(state->position.y - target_pos[1], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
     state_input[ 2] = clip(state->position.z - target_pos[2], -POS_DISTANCE_LIMIT, POS_DISTANCE_LIMIT);
@@ -166,6 +169,7 @@ static inline void update_state(const sensorData_t* sensors, const state_t* stat
     state_input[ 6] = 0;
   }
   if(hand_test == 0){
+    float VEL_DISTANCE_LIMIT = mode == FIGURE_EIGHT ? VEL_DISTANCE_LIMIT_FIGURE_EIGHT : VEL_DISTANCE_LIMIT_POSITION;
     state_input[ 7] = clip(state->velocity.x - target_vel[0], -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
     state_input[ 8] = clip(state->velocity.y - target_vel[1], -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
     state_input[ 9] = clip(state->velocity.z - target_vel[2], -VEL_DISTANCE_LIMIT, VEL_DISTANCE_LIMIT);
@@ -215,18 +219,21 @@ void controllerOutOfTreeInit(void){
   relative_pos[2] = 0;
   log_set_motors = 0;
 
-  POS_DISTANCE_LIMIT = 0.6f;
-  VEL_DISTANCE_LIMIT = 2.0f;
+  POS_DISTANCE_LIMIT_POSITION = 0.5f;
+  VEL_DISTANCE_LIMIT_POSITION = 2.0f;
+  POS_DISTANCE_LIMIT_FIGURE_EIGHT = 0.6f;
+  VEL_DISTANCE_LIMIT_FIGURE_EIGHT = 2.0f;
   POS_DISTANCE_LIMIT_MELLINGER = 0.2f;
   VEL_DISTANCE_LIMIT_MELLINGER = 1.0f;
   POS_DISTANCE_LIMIT_BRESCIANI = 0.2f;
   VEL_DISTANCE_LIMIT_BRESCIANI = 1.0f;
   MELLINGER_ENABLE_INTEGRATORS = 1;
 
-  target_height = 0.0;
+  target_height = 0.3;
+  target_height_figure_eight = 0.0;
 
-  // mode = POSITION;
-  mode = FIGURE_EIGHT;
+  mode = POSITION;
+  // mode = FIGURE_EIGHT;
   use_orig_controller = 0;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
@@ -335,7 +342,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     waypoint_navigation_dynamic_current_waypoint = 0;
     origin[0] = state->position.x;
     origin[1] = state->position.y;
-    origin[2] = state->position.z + target_height;
+    origin[2] = state->position.z + (mode == FIGURE_EIGHT ? target_height_figure_eight : target_height);
     figure_eight_last_invocation = now;
     figure_eight_progress = 0;
     controllerMellingerFirmwareInit();
@@ -544,6 +551,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
 PARAM_GROUP_START(bpt)
 PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
+PARAM_ADD(PARAM_FLOAT, target_z_fe, &target_height_figure_eight)
 PARAM_ADD(PARAM_UINT8, smo, &set_motors_overwrite)
 PARAM_ADD(PARAM_UINT8, ht, &hand_test)
 PARAM_ADD(PARAM_UINT8, wn, &mode)
@@ -552,8 +560,10 @@ PARAM_ADD(PARAM_FLOAT, wpt, &waypoint_navigation_dynamic_threshold)
 PARAM_ADD(PARAM_FLOAT, fewt, &figure_eight_warmup_time)
 PARAM_ADD(PARAM_FLOAT, fei, &figure_eight_interval)
 PARAM_ADD(PARAM_FLOAT, fes, &figure_eight_scale)
-PARAM_ADD(PARAM_FLOAT, pdl, &POS_DISTANCE_LIMIT)
-PARAM_ADD(PARAM_FLOAT, vdl, &VEL_DISTANCE_LIMIT)
+PARAM_ADD(PARAM_FLOAT, pdlp, &POS_DISTANCE_LIMIT_POSITION)
+PARAM_ADD(PARAM_FLOAT, pdlfe, &POS_DISTANCE_LIMIT_FIGURE_EIGHT)
+PARAM_ADD(PARAM_FLOAT, vdlp, &VEL_DISTANCE_LIMIT_POSITION)
+PARAM_ADD(PARAM_FLOAT, vdlfe, &VEL_DISTANCE_LIMIT_FIGURE_EIGHT)
 PARAM_ADD(PARAM_FLOAT, pdlm, &POS_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_FLOAT, vdlm, &VEL_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_UINT8, orig, &use_orig_controller)
