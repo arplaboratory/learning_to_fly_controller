@@ -3,8 +3,11 @@
 log   # file name
 0     # enable on startup (0/1)
 on:fixedFrequency
-500     # frequency
+200     # frequency
 1     # mode (0: disabled, 1: synchronous stabilizer, 2: asynchronous)
+stateEstimate.px
+stateEstimate.py
+stateEstimate.pz
 acc.x
 acc.y
 acc.z
