@@ -229,11 +229,11 @@ void controllerOutOfTreeInit(void){
   VEL_DISTANCE_LIMIT_BRESCIANI = 1.0f;
   MELLINGER_ENABLE_INTEGRATORS = 1;
 
-  target_height = 0.3;
+  target_height = 0.0;
   target_height_figure_eight = 0.0;
 
-  mode = POSITION;
-  // mode = FIGURE_EIGHT;
+  // mode = POSITION;
+  mode = FIGURE_EIGHT;
   use_orig_controller = 0;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
