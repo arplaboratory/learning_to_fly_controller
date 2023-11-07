@@ -31,7 +31,7 @@
 #define MAX_RPM 21702.1
 // #define WAYPOINT_NAVIGATION
 // static uint8_t waypoint_navigation = 0;
-#define WAYPOINT_NAVIGATION_POINT_DURATION (4 * 1000 * 1000)
+float WAYPOINT_NAVIGATION_POINT_DURATION = 4;
 #define WAYPOINT_NAVIGATION_POINTS (5)
 
 // #define PRINT_RPY
@@ -385,7 +385,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     case WAYPOINT_NAVIGATION:
     {
       uint64_t elapsed_since_start = (now-timestamp_last_waypoint);
-      int current_point = (elapsed_since_start / WAYPOINT_NAVIGATION_POINT_DURATION) % WAYPOINT_NAVIGATION_POINTS;
+      int current_point = (elapsed_since_start / ((int)(WAYPOINT_NAVIGATION_POINT_DURATION * 1000 * 1000))) % WAYPOINT_NAVIGATION_POINTS;
       target_pos[0] = trajectory[current_point][0] * trajectory_scale + origin[0];
       target_pos[1] = trajectory[current_point][1] * trajectory_scale + origin[1];
       target_pos[2] = trajectory[current_point][2] * trajectory_scale + origin[2];
@@ -568,6 +568,7 @@ PARAM_ADD(PARAM_FLOAT, pdlm, &POS_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_FLOAT, vdlm, &VEL_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_UINT8, orig, &use_orig_controller)
 PARAM_ADD(PARAM_UINT8, mei, &MELLINGER_ENABLE_INTEGRATORS)
+PARAM_ADD(PARAM_FLOAT, wni, &WAYPOINT_NAVIGATION_POINT_DURATION)
 PARAM_GROUP_STOP(bpt)
 
 
