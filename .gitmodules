@@ -1,9 +1,6 @@
 [submodule "external/crazyflie_firmware"]
 	path = external/crazyflie_firmware
 	url = https://github.com/BackpropTools/crazyflie_firmware.git
-[submodule "external/backprop_tools"]
-	path = external/backprop_tools
-	url = https://github.com/BackpropTools/multirotor.git
 [submodule "external/crazyflie_clients_python"]
 	path = external/crazyflie_clients_python
 	url = https://github.com/BackpropTools/crazyflie_clients_python.git
