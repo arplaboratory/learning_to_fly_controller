@@ -7,3 +7,6 @@
 [submodule "external/crazyflie_lib_python"]
 	path = external/crazyflie_lib_python
 	url = https://github.com/BackpropTools/crazyflie_lib_python.git
+[submodule "external/rl_tools"]
+	path = external/rl_tools
+	url = https://github.com/rl-tools/rl-tools.git

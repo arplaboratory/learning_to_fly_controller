@@ -85,7 +85,7 @@ The name of the added button is `learnedController` but it is not available in t
 }
 ```
 
-Beware that there is a motor divider parameter that is set to a high value leading to low motor outputs by default. To "arm" the controller, change the parameter under the `bpt` group in the cfclient UI.
+Beware that there is a motor divider parameter that is set to a high value leading to low motor outputs by default. To "arm" the controller, change the parameter under the `rlt` group in the cfclient UI.
 
 # Vicon
 Run the vicon client:

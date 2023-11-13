@@ -12,7 +12,7 @@
 #include "controller_indi.h"
 #include "controller_brescianini.h"
 #include "power_distribution.h"
-#include "backprop_tools_adapter.h"
+#include "rl_tools_adapter.h"
 #include "stabilizer_types.h"
 #include "pm.h"
 #include "task.h"
@@ -247,15 +247,15 @@ void controllerOutOfTreeInit(void){
   controllerMellingerFirmwareInit();
   controllerINDIInit();
   controllerBrescianiniInit();
-  backprop_tools_init();
+  rl_tools_init();
 
-  DEBUG_PRINT("BackpropTools controller init! Checkpoint: %s\n", backprop_tools_get_checkpoint_name());
+  DEBUG_PRINT("BackpropTools controller init! Checkpoint: %s\n", rl_tools_get_checkpoint_name());
 }
 
 bool controllerOutOfTreeTest(void)
 {
   float output[4];
-  float absdiff = backprop_tools_test(output);
+  float absdiff = rl_tools_test(output);
   if(absdiff < 0){
     absdiff = -absdiff;
   }
@@ -335,7 +335,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   timestamp_last_control_invocation = now;
   bool set_motors = (now - timestamp_last_control_packet_received < CONTROL_PACKET_TIMEOUT_USEC)  || (set_motors_overwrite == 1 && motor_cmd_divider >= 3);
   log_set_motors = set_motors ? 1 : 0;
-  set_backprop_tools_overwrite_stabilizer(set_motors);
+  set_rl_tools_overwrite_stabilizer(set_motors);
   if(!prev_set_motors && set_motors){
     timestamp_last_waypoint = now;
     timestamp_controller_activation = now;
@@ -439,7 +439,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
     {
       int64_t before = usecTimestamp();
       if(use_orig_controller == 0){
-        backprop_tools_control(state_input, action_output);
+        rl_tools_control(state_input, action_output);
       }
       else{
         action_output[0] = -0.8;
@@ -449,7 +449,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       }
       int64_t after = usecTimestamp();
       if (tick % (CONTROL_INTERVAL_MS * 10000) == 0){
-        DEBUG_PRINT("backprop_tools_control took %lldus\n", after - before);
+        DEBUG_PRINT("rl_tools_control took %lldus\n", after - before);
       }
     }
     for(uint8_t i=0; i<4; i++){
@@ -548,7 +548,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
 
 
 
-PARAM_GROUP_START(bpt)
+PARAM_GROUP_START(rlt)
 PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
 PARAM_ADD(PARAM_FLOAT, target_z_fe, &target_height_figure_eight)
@@ -569,64 +569,64 @@ PARAM_ADD(PARAM_FLOAT, vdlm, &VEL_DISTANCE_LIMIT_MELLINGER)
 PARAM_ADD(PARAM_UINT8, orig, &use_orig_controller)
 PARAM_ADD(PARAM_UINT8, mei, &MELLINGER_ENABLE_INTEGRATORS)
 PARAM_ADD(PARAM_FLOAT, wni, &WAYPOINT_NAVIGATION_POINT_DURATION)
-PARAM_GROUP_STOP(bpt)
+PARAM_GROUP_STOP(rlt)
 
 
-// LOG_GROUP_START(bptp)
+// LOG_GROUP_START(rltp)
 // LOG_ADD(LOG_FLOAT, x, &state_input[0])
 // LOG_ADD(LOG_FLOAT, y, &state_input[1])
 // LOG_ADD(LOG_FLOAT, z, &state_input[2])
-// LOG_GROUP_STOP(bptp)
+// LOG_GROUP_STOP(rltp)
 
-// LOG_GROUP_START(bptq)
+// LOG_GROUP_START(rltq)
 // LOG_ADD(LOG_FLOAT, w, &state_input[3])
 // LOG_ADD(LOG_FLOAT, x, &state_input[4])
 // LOG_ADD(LOG_FLOAT, y, &state_input[5])
 // LOG_ADD(LOG_FLOAT, z, &state_input[6])
-// LOG_GROUP_STOP(bptq)
+// LOG_GROUP_STOP(rltq)
 
-// LOG_GROUP_START(bpttwl)
+// LOG_GROUP_START(rlttwl)
 // LOG_ADD(LOG_FLOAT, x, &state_input[7])
 // LOG_ADD(LOG_FLOAT, y, &state_input[8])
 // LOG_ADD(LOG_FLOAT, z, &state_input[9])
-// LOG_GROUP_STOP(bpttwl)
+// LOG_GROUP_STOP(rlttwl)
 
-// LOG_GROUP_START(bpttwa)
+// LOG_GROUP_START(rlttwa)
 // LOG_ADD(LOG_FLOAT, x, &state_input[10])
 // LOG_ADD(LOG_FLOAT, y, &state_input[11])
 // LOG_ADD(LOG_FLOAT, z, &state_input[12])
-// LOG_GROUP_STOP(bpttwa)
+// LOG_GROUP_STOP(rlttwa)
 
-// LOG_GROUP_START(bptt)
+// LOG_GROUP_START(rltt)
 // LOG_ADD(LOG_FLOAT, x, &target_pos[0])
 // LOG_ADD(LOG_FLOAT, y, &target_pos[1])
 // LOG_ADD(LOG_FLOAT, z, &target_pos[2])
-// LOG_GROUP_STOP(bptt)
+// LOG_GROUP_STOP(rltt)
 
 
-LOG_GROUP_START(bptm)
+LOG_GROUP_START(rltm)
 LOG_ADD(LOG_UINT16, m1, &motor_cmd[0])
 LOG_ADD(LOG_UINT16, m2, &motor_cmd[1])
 LOG_ADD(LOG_UINT16, m3, &motor_cmd[2])
 LOG_ADD(LOG_UINT16, m4, &motor_cmd[3])
-LOG_GROUP_STOP(bptm)
+LOG_GROUP_STOP(rltm)
 
-LOG_GROUP_START(bptrp)
+LOG_GROUP_START(rltrp)
 LOG_ADD(LOG_FLOAT, x, &relative_pos[0])
 LOG_ADD(LOG_FLOAT, y, &relative_pos[1])
 LOG_ADD(LOG_FLOAT, z, &relative_pos[2])
 LOG_ADD(LOG_UINT8, sm, &log_set_motors)
-LOG_GROUP_STOP(bptrp)
+LOG_GROUP_STOP(rltrp)
 
-LOG_GROUP_START(bpttp)
+LOG_GROUP_START(rlttp)
 LOG_ADD(LOG_FLOAT, x, &target_pos[0])
 LOG_ADD(LOG_FLOAT, y, &target_pos[1])
 LOG_ADD(LOG_FLOAT, z, &target_pos[2])
-LOG_GROUP_STOP(bptrp)
+LOG_GROUP_STOP(rltrp)
 
-LOG_GROUP_START(bptte)
+LOG_GROUP_START(rltte)
 LOG_ADD(LOG_FLOAT, x, &pos_error[0])
 LOG_ADD(LOG_FLOAT, y, &pos_error[1])
 LOG_ADD(LOG_FLOAT, z, &pos_error[2])
-LOG_GROUP_STOP(bptre)
+LOG_GROUP_STOP(rltre)
 

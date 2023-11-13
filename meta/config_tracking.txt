@@ -5,10 +5,10 @@ log   # file name
 on:fixedFrequency
 1000     # frequency
 1     # mode (0: disabled, 1: synchronous stabilizer, 2: asynchronous)
-bptrp.sm
-bptrp.x
-bptrp.y
-bptrp.z
-bptte.x
-bptte.y
-bptte.z
+rltrp.sm
+rltrp.x
+rltrp.y
+rltrp.z
+rltte.x
+rltte.y
+rltte.z
