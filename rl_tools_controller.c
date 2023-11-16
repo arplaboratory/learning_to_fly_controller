@@ -43,6 +43,7 @@ static uint64_t timestamp_last_reset;
 static uint64_t timestamp_last_behind_schedule_message = 0;
 static uint64_t timestamp_last_control_invocation = 0;
 static uint64_t timestamp_last_control_packet_received = 0;
+static uint64_t timestamp_last_control_packet_received_hover = 0;
 static uint64_t timestamp_controller_activation;
 
 // Logging variables
@@ -72,7 +73,12 @@ enum Mode{
   WAYPOINT_NAVIGATION_DYNAMIC = 2,
   FIGURE_EIGHT = 3
 };
+enum TriggerMode{
+  RL_TOOLS_PACKET = 0,
+  HOVER_PACKET = 1,
+};
 static uint8_t mode;
+static uint8_t trigger_mode;
 static float trajectory[WAYPOINT_NAVIGATION_NUMBER_OF_POINTS][3] = {
   {0.0, 0.0, 0.0},
   {1.0, 0.0, 0.0},
@@ -175,16 +181,21 @@ static inline void update_state(const sensorData_t* sensors, const state_t* stat
   }
 }
 
-void learned_controller_packet_received(){
+void rl_tools_controller_packet_received(){
   uint64_t now = usecTimestamp();
   timestamp_last_control_packet_received = now;
 }
+// void rl_tools_controller_hover_packet_received(){
+//   uint64_t now = usecTimestamp();
+//   timestamp_last_control_packet_received_hover = now;
+//   DEBUG_PRINT("Hover packet received\n");
+// }
 
 
 void controllerOutOfTreeInit(void){
   controller_state = STATE_RESET;
   controller_tick = 0;
-  motor_cmd_divider = 1.0;
+  motor_cmd_divider = 15.0;
   motor_cmd[0] = 0;
   motor_cmd[1] = 0;
   motor_cmd[2] = 0;
@@ -192,6 +203,7 @@ void controllerOutOfTreeInit(void){
   timestamp_last_reset = usecTimestamp();
   prev_set_motors = false;
   timestamp_last_control_packet_received = 0;
+  timestamp_last_control_packet_received_hover = 0;
   timestamp_last_behind_schedule_message = 0;
   control_invocation_interval = 0;
   forward_tick = 0;
@@ -216,8 +228,9 @@ void controllerOutOfTreeInit(void){
   target_height = 0.0;
   target_height_figure_eight = 0.0;
 
-  // mode = POSITION;
-  mode = FIGURE_EIGHT;
+  mode = POSITION;
+  // mode = FIGURE_EIGHT;
+  trigger_mode = RL_TOOLS_PACKET;
   use_orig_controller = 0;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
@@ -308,8 +321,8 @@ static inline void trigger_every(uint64_t controller_tick){
 
 void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorData_t *sensors, const state_t *state, const uint32_t tick) {
   uint64_t now = usecTimestamp();
-  if(setpoint->mode.x == modeVelocity && setpoint->mode.y == modeVelocity && setpoint->mode.z == modeAbs){
-    // timestamp_last_control_packet_received = now;
+  if(setpoint->mode.x == modeVelocity && setpoint->mode.y == modeVelocity){
+    timestamp_last_control_packet_received_hover = now;
   }
 
   last_setpoint = *setpoint;
@@ -317,7 +330,8 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   control_invocation_interval *= CONTROL_INVOCATION_INTERVAL_ALPHA;
   control_invocation_interval += (1-CONTROL_INVOCATION_INTERVAL_ALPHA) * (now - timestamp_last_control_invocation);
   timestamp_last_control_invocation = now;
-  bool set_motors = (now - timestamp_last_control_packet_received < CONTROL_PACKET_TIMEOUT_USEC)  || (set_motors_overwrite == 1 && motor_cmd_divider >= 3);
+  uint64_t relevant_timestamp_last_control_packet_received = trigger_mode == RL_TOOLS_PACKET ? timestamp_last_control_packet_received : timestamp_last_control_packet_received_hover;
+  bool set_motors = (now - relevant_timestamp_last_control_packet_received < CONTROL_PACKET_TIMEOUT_USEC)  || (set_motors_overwrite == 1 && motor_cmd_divider >= 3);
   log_set_motors = set_motors ? 1 : 0;
   // set_rl_tools_overwrite_stabilizer(set_motors);
   if(!prev_set_motors && set_motors){
@@ -533,6 +547,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
 
 
 PARAM_GROUP_START(rlt)
+PARAM_ADD(PARAM_UINT8, trigger, &trigger_mode)
 PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
 PARAM_ADD(PARAM_FLOAT, target_z_fe, &target_height_figure_eight)
