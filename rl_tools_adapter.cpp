@@ -5,15 +5,9 @@
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 #include <rl_tools/nn/layers/dense/operations_arm/dsp.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-// #include "data/actor_000000000500000.h"
-// #include "data/actor_000000001000000.h"
-// #include "data/actor_000000004000000.h"
 
-// #include <rl_tools/rl/environments/multirotor/multirotor.h>
 #include "data/actor.h"
-// #include "data/test_rl_tools_nn_models_mlp_evaluation.h"
 
-// #define RL_TOOLS_CONTROL_STATE_QUATERNION
 #define RL_TOOLS_CONTROL_STATE_ROTATION_MATRIX
 // #define RL_TOOLS_DISABLE_TEST
 #define RL_TOOLS_ACTION_HISTORY
@@ -80,7 +74,6 @@ void rl_tools_init(){
     rlt::malloc(device, buffers);
     rlt::malloc(device, input);
     rlt::malloc(device, output);
-    // todo: create rl_tools_reset to reset the action history on each activation
 #ifdef RL_TOOLS_ACTION_HISTORY
     for(TI step_i = 0; step_i < ACTION_HISTORY_LENGTH; step_i++){
         for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
@@ -97,18 +90,6 @@ char* rl_tools_get_checkpoint_name(){
 
 float rl_tools_test(float* output_mem){
 #ifndef RL_TOOLS_DISABLE_TEST
-// #ifndef RL_TOOLS_CONTROL_STATE_QUATERNION
-//     auto state = rlt::view(device, rlt::checkpoint::state::container, rlt::matrix::ViewSpec<1, 13>{}, 0, 0);
-//     // observe_rotation_matrix(state, input);
-//     // rlt::evaluate(device, rlt::checkpoint::actor::mlp, input, output, buffers);
-//     rlt::evaluate(device, rlt::checkpoint::actor::mlp, rlt::checkpoint::observation::container, output, buffers);
-//     float acc = 0;
-//     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
-//         acc += std::abs(rlt::get(output, 0, i) - rlt::get(rlt::checkpoint::action::container, 0, i));
-//         output_mem[i] = rlt::get(rlt::checkpoint::action::container, 0, i);
-//     }
-//     return acc;
-// #elif defined(RL_TOOLS_CONTROL_STATE_ROTATION_MATRIX)
     rlt::evaluate(device, rlt::checkpoint::actor::model, rlt::checkpoint::observation::container, output, buffers);
     float acc = 0;
     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
@@ -116,21 +97,11 @@ float rl_tools_test(float* output_mem){
         output_mem[i] = rlt::get(rlt::checkpoint::action::container, 0, i);
     }
     return acc;
-// #endif
 #else
     return 0;
 #endif
 }
 
-#ifdef RL_TOOLS_CONTROL_STATE_QUATERNION
-void rl_tools_control(float* state, float* actions){
-    static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == 13);
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 13, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(T*)state}; 
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
-    rlt::evaluate(device, rlt::checkpoint::actor::mlp, state_matrix, output, buffers);
-    controller_tick++;
-}
-#elif defined(RL_TOOLS_CONTROL_STATE_ROTATION_MATRIX)
 void rl_tools_control(float* state, float* actions){
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 13, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(T*)state}; 
     auto state_rotation_matrix_input = rlt::view(device, input, rlt::matrix::ViewSpec<1, 18>{}, 0, 0);
@@ -164,4 +135,3 @@ void rl_tools_control(float* state, float* actions){
 #endif
     controller_tick++;
 }
-#endif
