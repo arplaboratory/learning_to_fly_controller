@@ -18,7 +18,7 @@
 
 #define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
-#define CONTROL_PACKET_TIMEOUT_USEC (1000*400)
+#define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
 #define CONTROL_INVOCATION_INTERVAL_ALPHA 0.95f
 #define DEBUG_MEASURE_FORWARD_TIME
@@ -361,7 +361,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   if(!prev_pre_set_motors && pre_set_motors){
     timestamp_pre_set_motors = now;
   }
-  set_motors = pre_set_motors && ((now - timestamp_pre_set_motors) > WARMUP_TIME);
+  set_motors = pre_set_motors && (((now - timestamp_pre_set_motors) > WARMUP_TIME) || trigger_mode == RL_TOOLS_PACKET);
 
   log_set_motors = set_motors ? 1 : 0;
   // set_rl_tools_overwrite_stabilizer(set_motors);
