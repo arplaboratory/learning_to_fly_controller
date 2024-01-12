@@ -113,6 +113,7 @@ static uint8_t set_motors_overwrite = 0;
 static uint16_t motor_cmd[4];
 static float motor_cmd_divider, motor_cmd_divider_warmup;
 static bool prev_set_motors, prev_pre_set_motors;
+static uint8_t use_pre_set_warmup;
 
 static motors_thrust_uncapped_t motorThrustUncapped;
 static motors_thrust_uncapped_t motorThrustBatCompUncapped;
@@ -201,6 +202,7 @@ void controllerOutOfTreeInit(void){
   controller_tick = 0;
   motor_cmd_divider = 1.0;
   motor_cmd_divider_warmup = 7.0;
+
   motor_cmd[0] = 0;
   motor_cmd[1] = 0;
   motor_cmd[2] = 0;
@@ -208,6 +210,7 @@ void controllerOutOfTreeInit(void){
   timestamp_last_reset = usecTimestamp();
   prev_set_motors = false;
   prev_pre_set_motors = false;
+  use_pre_set_warmup = 1;
   timestamp_last_control_packet_received = 0;
   timestamp_last_control_packet_received_hover = 0;
   timestamp_last_behind_schedule_message = 0;
@@ -361,7 +364,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
   if(!prev_pre_set_motors && pre_set_motors){
     timestamp_pre_set_motors = now;
   }
-  set_motors = pre_set_motors && (((now - timestamp_pre_set_motors) > WARMUP_TIME) || trigger_mode == RL_TOOLS_PACKET);
+  set_motors = pre_set_motors && (((now - timestamp_pre_set_motors) > WARMUP_TIME) || use_pre_set_warmup == 0);
 
   log_set_motors = set_motors ? 1 : 0;
   // set_rl_tools_overwrite_stabilizer(set_motors);
@@ -637,6 +640,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
 
 PARAM_GROUP_START(rlt)
 PARAM_ADD(PARAM_UINT8, trigger, &trigger_mode)
+PARAM_ADD(PARAM_UINT8, motor_warmup, &use_pre_set_warmup)
 PARAM_ADD(PARAM_FLOAT, motor_div, &motor_cmd_divider)
 PARAM_ADD(PARAM_FLOAT, motor_div_wu, &motor_cmd_divider_warmup)
 PARAM_ADD(PARAM_FLOAT, target_z, &target_height)
