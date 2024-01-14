@@ -32,7 +32,7 @@ static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == 18);
 #endif
 
 // State
-static ACTOR_TYPE::template DoubleBuffer<1, rlt::MatrixStaticTag> buffers;
+static ACTOR_TYPE::template Buffer<1, rlt::MatrixStaticTag> buffers;
 static rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
 static rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM>> output;
 #ifdef RL_TOOLS_ACTION_HISTORY
