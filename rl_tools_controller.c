@@ -242,8 +242,8 @@ void controllerOutOfTreeInit(void){
   // mode = NORMAL;
   mode = POSITION;
   // mode = FIGURE_EIGHT;
-  // trigger_mode = RL_TOOLS_PACKET;
-  trigger_mode = HOVER_PACKET;
+  trigger_mode = RL_TOOLS_PACKET;
+  // trigger_mode = HOVER_PACKET;
   use_orig_controller = 0;
   waypoint_navigation_dynamic_current_waypoint = 0;
   waypoint_navigation_dynamic_threshold = 0;
