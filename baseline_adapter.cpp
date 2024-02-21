@@ -98,8 +98,8 @@ char* rl_tools_get_checkpoint_name(){
 
 float rl_tools_test(float* output_mem){
 #ifndef RL_TOOLS_DISABLE_TEST
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
-    rlt::malloc(device, input);
+    // rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
+    // rlt::malloc(device, input);
     for(TI input_i=0; input_i < ACTOR_TYPE::SPEC::INPUT_DIM; input_i++){
         T mean = rlt::get(observation_mean::container, 0, input_i);
         T std = rlt::get(observation_std::container, 0, input_i);
@@ -108,6 +108,7 @@ float rl_tools_test(float* output_mem){
 
     rlt::evaluate(device, actor::model, input, output, buffers);
     // float acc = 0;
+    // observation_mean::container._data = observation_mean::memory;
     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
         // acc += std::abs(rlt::get(output, 0, i) - rlt::get(rlt::checkpoint::action::container, 0, i));
         output_mem[i] = rlt::get(output, 0, i);
