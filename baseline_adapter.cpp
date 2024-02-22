@@ -28,11 +28,12 @@ constexpr TI INPUT_DIM_STATE = 13;
 constexpr TI INPUT_DIM_ACTION = 4;
 constexpr TI INPUT_DIM_PER_STEP = INPUT_DIM_STATE + INPUT_DIM_ACTION; //rlt::checkpoint::environment::ACTION_HISTORY_LENGTH
 static_assert(ACTOR_TYPE::SPEC::INPUT_DIM == (INPUT_DIM_PER_STEP * HISTORY_LENGTH));
-bool initialized = false;
+static bool initialized = false;
 
 // State
 static ACTOR_TYPE::template Buffer<1, rlt::MatrixStaticTag> buffers;
-static rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input;
+static rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input_history;
+static rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::INPUT_DIM>> input_buffer;
 static rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, INPUT_DIM_PER_STEP>> current_input;
 static rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM>> output;
 #ifdef RL_TOOLS_ACTION_HISTORY
@@ -77,7 +78,8 @@ static inline void observe(const rlt::Matrix<STATE_SPEC>& state, rlt::Matrix<OBS
 // Main functions (possibly with side effects)
 void rl_tools_init(){
     rlt::malloc(device, buffers);
-    rlt::malloc(device, input);
+    rlt::malloc(device, input_history);
+    rlt::malloc(device, input_buffer);
     rlt::malloc(device, current_input);
     rlt::malloc(device, output);
     rlt::set_all(device, output, 0);
@@ -103,10 +105,14 @@ float rl_tools_test(float* output_mem){
     for(TI input_i=0; input_i < ACTOR_TYPE::SPEC::INPUT_DIM; input_i++){
         T mean = rlt::get(observation_mean::container, 0, input_i);
         T std = rlt::get(observation_std::container, 0, input_i);
-        rlt::set(input, 0, input_i, (0 - mean) / std);
+        T input_value = 0;
+        if(input_i == 2){
+            input_value = 1.0;
+        }
+        rlt::set(input_buffer, 0, input_i, (input_value - mean) / std);
     }
 
-    rlt::evaluate(device, actor::model, input, output, buffers);
+    rlt::evaluate(device, actor::model, input_buffer, output, buffers);
     // float acc = 0;
     // observation_mean::container._data = observation_mean::memory;
     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
@@ -119,88 +125,100 @@ float rl_tools_test(float* output_mem){
 #endif
 }
 
+
 void rl_tools_control(float* state, float* actions){
-    rlt::set_all(device, input, 0);
+    if(!initialized){
+        rlt::set_all(device, input_history, 0);
+        initialized = true;
+    }
+    for(TI step_i = 0; step_i < HISTORY_LENGTH - 1; step_i++){
+        auto current_step_source = rlt::view(device, input_history, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, (step_i+1)*INPUT_DIM_PER_STEP);
+        auto current_step_target = rlt::view(device, input_history, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, step_i*INPUT_DIM_PER_STEP);
+        rlt::copy(device, device, current_step_source, current_step_target);
+    }
+    auto last_action = rlt::view(device, input_history, rlt::matrix::ViewSpec<1, INPUT_DIM_ACTION>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP + INPUT_DIM_STATE);
+    rlt::copy(device, device, output, last_action);
+
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 13, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(T*)state}; 
-    auto last_step_input = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_STATE>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP);
+    auto last_step_input = rlt::view(device, input_history, rlt::matrix::ViewSpec<1, INPUT_DIM_STATE>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP);
     observe(state_matrix, last_step_input);
     for(TI input_i=0; input_i < ACTOR_TYPE::SPEC::INPUT_DIM; input_i++){
-        T value = rlt::get(input, 0, input_i);
+        T value = rlt::get(input_history, 0, input_i);
         T mean = rlt::get(observation_mean::container, 0, input_i);
         T std = rlt::get(observation_std::container, 0, input_i);
         T normalized = (value - mean) / std;
-        rlt::set(input, 0, input_i, normalized);
+        rlt::set(input_buffer, 0, input_i, normalized);
     }
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
-    rlt::evaluate(device, actor::model, input, output, buffers);
+    // rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
+    rlt::evaluate(device, actor::model, input_buffer, output, buffers);
     for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
         T thrust = rlt::get(output, 0, action_i);
         T clipped_thrust = thrust < -1.0 ? -1.0 : (thrust > 1.0 ? 1.0 : thrust);
         T normed_thrust = (clipped_thrust + 1)/2;
         T normed_rpm = rlt::math::sqrt(device.math, normed_thrust);
-        set(output, 0, action_i, normed_rpm * 2.0 - 1.0);
+        actions[action_i] = normed_rpm * 2.0 - 1.0;
     }
 }
-void rl_tools_control_other(float* state, float* actions){
-    int substep = controller_tick % CONTROL_FREQUENCY_MULTIPLE;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 13, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(T*)state}; 
-    auto last_step_input = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_STATE>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP);
-    observe(state_matrix, last_step_input);
-    if(substep == 0){
-        for(TI step_i = 0; step_i < HISTORY_LENGTH - 1; step_i++){
-            auto current_step_source = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, (step_i+1)*INPUT_DIM_PER_STEP);
-            auto current_step_target = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, step_i*INPUT_DIM_PER_STEP);
-            rlt::copy(device, device, current_step_source, current_step_target);
-        }
-        auto current_action = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_ACTION>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP + INPUT_DIM_STATE);
-        rlt::copy(device, device, output, current_action);
-    }
-    if(!initialized){
-        auto current_action = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_ACTION>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP + INPUT_DIM_STATE);
-        rlt::set_all(device, current_action, 0);
-        auto source = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP);
-        for(TI step_i = 0; step_i < HISTORY_LENGTH-1; step_i++){
-            auto current_step_target = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, step_i*INPUT_DIM_PER_STEP);
-            rlt::copy(device, device, source, current_step_target);
-        }
-        initialized = true;
-    }
-#ifdef RL_TOOLS_ACTION_HISTORY
-    auto action_history_observation = rlt::view(device, input, rlt::matrix::ViewSpec<1, ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM>{}, 0, 18);
-    for(TI step_i = 0; step_i < ACTION_HISTORY_LENGTH; step_i++){
-        for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
-            rlt::set(action_history_observation, 0, step_i * ACTOR_TYPE::SPEC::OUTPUT_DIM + action_i, action_history[step_i][action_i]);
-        }
-    }
-#endif
-    for(TI input_i=0; input_i < ACTOR_TYPE::SPEC::INPUT_DIM; input_i++){
-        T value = rlt::get(input, 0, input_i);
-        T mean = rlt::get(observation_mean::container, 0, input_i);
-        T std = rlt::get(observation_std::container, 0, input_i);
-        T normalized = (value - mean) / std;
-        rlt::set(input, 0, input_i, normalized);
-    }
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
-    rlt::evaluate(device, actor::model, input, output, buffers);
-    for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
-        T clipped_thrust = rlt::get(output, 0, action_i) < -1.0 ? -1.0 : (rlt::get(output, 0, action_i) > 1.0 ? 1.0 : rlt::get(output, 0, action_i));
-        T normed_thrust = (clipped_thrust + 1)/2;
-        T normed_rpm = rlt::math::sqrt(device.math, normed_thrust);
-        set(output, 0, action_i, normed_rpm * 2.0 - 1.0);
-    }
-    // if(substep == 0){
-    //     for(TI step_i = 0; step_i < HISTORY_LENGTH - 1; step_i++){
-    //         for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
-    //             action_history[step_i][action_i] = action_history[step_i + 1][action_i];
-    //         }
-    //     }
-    // }
-    // for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
-    //     T value = action_history[HISTORY_LENGTH - 1][action_i];
-    //     value *= substep;
-    //     value += rlt::get(output, 0, action_i);
-    //     value /= substep + 1;
-    //     action_history[ACTION_HISTORY_LENGTH - 1][action_i] = value;
-    // }
-    controller_tick++;
-}
+// void rl_tools_control_other(float* state, float* actions){
+//     int substep = controller_tick % CONTROL_FREQUENCY_MULTIPLE;
+//     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 13, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_matrix = {(T*)state}; 
+//     auto last_step_input = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_STATE>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP);
+//     observe(state_matrix, last_step_input);
+//     if(substep == 0){
+//         for(TI step_i = 0; step_i < HISTORY_LENGTH - 1; step_i++){
+//             auto current_step_source = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, (step_i+1)*INPUT_DIM_PER_STEP);
+//             auto current_step_target = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, step_i*INPUT_DIM_PER_STEP);
+//             rlt::copy(device, device, current_step_source, current_step_target);
+//         }
+//         auto current_action = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_ACTION>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP + INPUT_DIM_STATE);
+//         rlt::copy(device, device, output, current_action);
+//     }
+//     if(!initialized){
+//         auto current_action = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_ACTION>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP + INPUT_DIM_STATE);
+//         rlt::set_all(device, current_action, 0);
+//         auto source = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, (HISTORY_LENGTH-1)*INPUT_DIM_PER_STEP);
+//         for(TI step_i = 0; step_i < HISTORY_LENGTH-1; step_i++){
+//             auto current_step_target = rlt::view(device, input, rlt::matrix::ViewSpec<1, INPUT_DIM_PER_STEP>{}, 0, step_i*INPUT_DIM_PER_STEP);
+//             rlt::copy(device, device, source, current_step_target);
+//         }
+//         initialized = true;
+//     }
+// #ifdef RL_TOOLS_ACTION_HISTORY
+//     auto action_history_observation = rlt::view(device, input, rlt::matrix::ViewSpec<1, ACTION_HISTORY_LENGTH * ACTOR_TYPE::SPEC::OUTPUT_DIM>{}, 0, 18);
+//     for(TI step_i = 0; step_i < ACTION_HISTORY_LENGTH; step_i++){
+//         for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+//             rlt::set(action_history_observation, 0, step_i * ACTOR_TYPE::SPEC::OUTPUT_DIM + action_i, action_history[step_i][action_i]);
+//         }
+//     }
+// #endif
+//     for(TI input_i=0; input_i < ACTOR_TYPE::SPEC::INPUT_DIM; input_i++){
+//         T value = rlt::get(input, 0, input_i);
+//         T mean = rlt::get(observation_mean::container, 0, input_i);
+//         T std = rlt::get(observation_std::container, 0, input_i);
+//         T normalized = (value - mean) / std;
+//         rlt::set(input, 0, input_i, normalized);
+//     }
+//     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::SPEC::OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> output = {(T*)actions};
+//     rlt::evaluate(device, actor::model, input, output, buffers);
+//     for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+//         T clipped_thrust = rlt::get(output, 0, action_i) < -1.0 ? -1.0 : (rlt::get(output, 0, action_i) > 1.0 ? 1.0 : rlt::get(output, 0, action_i));
+//         T normed_thrust = (clipped_thrust + 1)/2;
+//         T normed_rpm = rlt::math::sqrt(device.math, normed_thrust);
+//         set(output, 0, action_i, normed_rpm * 2.0 - 1.0);
+//     }
+//     // if(substep == 0){
+//     //     for(TI step_i = 0; step_i < HISTORY_LENGTH - 1; step_i++){
+//     //         for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+//     //             action_history[step_i][action_i] = action_history[step_i + 1][action_i];
+//     //         }
+//     //     }
+//     // }
+//     // for(TI action_i = 0; action_i < ACTOR_TYPE::SPEC::OUTPUT_DIM; action_i++){
+//     //     T value = action_history[HISTORY_LENGTH - 1][action_i];
+//     //     value *= substep;
+//     //     value += rlt::get(output, 0, action_i);
+//     //     value /= substep + 1;
+//     //     action_history[ACTION_HISTORY_LENGTH - 1][action_i] = value;
+//     // }
+//     controller_tick++;
+// }

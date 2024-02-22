@@ -16,7 +16,7 @@
 #include "pm.h"
 #include "task.h"
 
-#define CONTROL_INTERVAL_MS 2
+#define CONTROL_INTERVAL_MS 10
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
@@ -210,7 +210,7 @@ void controllerOutOfTreeInit(void){
   timestamp_last_reset = usecTimestamp();
   prev_set_motors = false;
   prev_pre_set_motors = false;
-  use_pre_set_warmup = 1;
+  use_pre_set_warmup = 0;
   timestamp_last_control_packet_received = 0;
   timestamp_last_control_packet_received_hover = 0;
   timestamp_last_behind_schedule_message = 0;
@@ -536,7 +536,7 @@ void controllerOutOfTree(control_t *control, setpoint_t *setpoint, const sensorD
       }
     }
     for(uint8_t i=0; i<4; i++){
-      if (tick % (CONTROL_INTERVAL_MS * 10000) == 0){
+      if (tick % (CONTROL_INTERVAL_MS * 1000) == 0){
         DEBUG_PRINT("action_output[%d]: %f\n", i, action_output[i]);
       }
       float a_pp = (action_output[i] + 1)/2;
