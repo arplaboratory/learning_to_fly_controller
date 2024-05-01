@@ -16,7 +16,7 @@
 #include "pm.h"
 #include "task.h"
 
-#define CONTROL_INTERVAL_MS 10
+#define CONTROL_INTERVAL_MS 2
 #define CONTROL_INTERVAL_US (CONTROL_INTERVAL_MS * 1000)
 #define CONTROL_PACKET_TIMEOUT_USEC (1000*200)
 #define BEHIND_SCHEDULE_MESSAGE_MIN_INTERVAL (1000000)
@@ -236,7 +236,7 @@ void controllerOutOfTreeInit(void){
   velocity_cmd_multiplier = 1;
   velocity_cmd_p_term = 0.0;
 
-  target_height = 0.3;
+  target_height = 0.0;
   target_height_figure_eight = 0.0;
 
   // mode = NORMAL;

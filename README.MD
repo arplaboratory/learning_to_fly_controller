@@ -7,3 +7,16 @@ cd ../../
 make
 cfloader flash build/cf2.bin stm32-fw -w radio://0/80/2M
 ```
+
+
+### macOS: Building using Docker
+```
+./docker_build.sh
+```
+The build process needs access to the git repo (to incorporate the commit/tag into the firmware I suppose) hence the topmost repository (conttaining the `.git` folder) has to be mounted in the docker container when this repo is cloned as a submodule:
+```
+(cd .. && ./controller/docker_run.sh )
+```
+
+
+checkpoints/multirotor_td3/2024_05_01_16_30_37_d-o-a+r+h+c-f+w+e-_007/actor_000000001000000.h
