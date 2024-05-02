@@ -17,6 +17,3 @@ The build process needs access to the git repo (to incorporate the commit/tag in
 ```
 (cd .. && ./controller/docker_run.sh )
 ```
-
-
-checkpoints/multirotor_td3/2024_05_01_16_30_37_d-o-a+r+h+c-f+w+e-_007/actor_000000001000000.h
